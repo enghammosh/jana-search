@@ -1,0 +1,77 @@
+[{"Id" : "170","IdCounter" : "","text2" : "كتب الأحاديث","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "كتب الأحاديث"}
+,{"Id" : "187","IdCounter" : "1","text2" : "أداء ما وجب","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "أداء ما وجب"}
+,{"Id" : "2541","IdCounter" : "2","text2" : "إرواء الغليل","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "إرواء الغليل"}
+,{"Id" : "330221","IdCounter" : "3","text2" : "إزالة الدهش والوله","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "إزالة الدهش والوله"}
+,{"Id" : "334243","IdCounter" : "4","text2" : "إصلاح المساجد","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "إصلاح المساجد"}
+,{"Id" : "346880","IdCounter" : "5","text2" : "اقتضاء العلم العمل","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "اقتضاء العلم العمل"}
+,{"Id" : "354314","IdCounter" : "6","text2" : "الإيمان لابن تيمية","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "الإيمان لابن تيمية"}
+,{"Id" : "375514","IdCounter" : "7","text2" : "الإيمان لابن سلام","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "الإيمان لابن سلام"}
+,{"Id" : "378543","IdCounter" : "8","text2" : "الاحتجاج بالقدر","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "الاحتجاج بالقدر"}
+,{"Id" : "383938","IdCounter" : "9","text2" : "السنة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "السنة"}
+,{"Id" : "1184100","IdCounter" : "12","text2" : "بداية السول","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "بداية السول"}
+,{"Id" : "1186912","IdCounter" : "13","text2" : "تخريج أحاديث مشكلة الفقر","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "تخريج أحاديث مشكلة الفقر"}
+,{"Id" : "1205365","IdCounter" : "14","text2" : "حقوق النساء في الإسلام","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "حقوق النساء في الإسلام"}
+,{"Id" : "1208566","IdCounter" : "15","text2" : "رياض الصالحين","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "رياض الصالحين"}
+,{"Id" : "1249931","IdCounter" : "16","text2" : "سلسة الأحاديث الصحيحة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سلسة الأحاديث الصحيحة"}
+,{"Id" : "1755598","IdCounter" : "27","text2" : "سلسلة الأحاديث الضعيفة والموضوعة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سلسلة الأحاديث الضعيفة والموضوعة"}
+,{"Id" : "2446870","IdCounter" : "40","text2" : "سنن أبي داود","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سنن أبي داود"}
+,{"Id" : "4473105","IdCounter" : "81","text2" : "سنن ابن ماجة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سنن ابن ماجة"}
+,{"Id" : "6642784","IdCounter" : "674","text2" : "سنن الترمذي","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سنن الترمذي"}
+,{"Id" : "9830467","IdCounter" : "2633","text2" : "سنن النسائي","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "سنن النسائي"}
+,{"Id" : "11693857","IdCounter" : "5202","text2" : "شرح العقيدة الطحاوية","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "شرح العقيدة الطحاوية"}
+,{"Id" : "11746692","IdCounter" : "5203","text2" : "صحيح ابن خزيمة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "صحيح ابن خزيمة"}
+,{"Id" : "11970692","IdCounter" : "5204","text2" : "صحيح الأدب المفرد","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "صحيح الأدب المفرد"}
+,{"Id" : "12247279","IdCounter" : "5749","text2" : "صحيح الجامع الصغير","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "صحيح الجامع الصغير"}
+,{"Id" : "13381852","IdCounter" : "5752","text2" : "مساجلة علمية","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "مساجلة علمية"}
+,{"Id" : "13383657","IdCounter" : "5753","text2" : "ضعيف الأدب المفرد","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "ضعيف الأدب المفرد"}
+,{"Id" : "13445700","IdCounter" : "5939","text2" : "ضعيف الترغيب والترهيب","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "ضعيف الترغيب والترهيب"}
+,{"Id" : "14121778","IdCounter" : "5942","text2" : "ضعيف الجامع الصغير","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "ضعيف الجامع الصغير"}
+,{"Id" : "14919314","IdCounter" : "5943","text2" : "غاية المرام","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "غاية المرام"}
+,{"Id" : "14991201","IdCounter" : "5944","text2" : "فضائل الشام ودمشق","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "فضائل الشام ودمشق"}
+,{"Id" : "15001823","IdCounter" : "5945","text2" : "فضل الصلاة على النبي","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "فضل الصلاة على النبي"}
+,{"Id" : "15024234","IdCounter" : "5946","text2" : "فقه السيرة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "فقه السيرة"}
+,{"Id" : "15121991","IdCounter" : "5947","text2" : "كتاب العلم","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "كتاب العلم"}
+,{"Id" : "15125869","IdCounter" : "5948","text2" : "كلمة الإخلاص","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "كلمة الإخلاص"}
+,{"Id" : "15132005","IdCounter" : "5949","text2" : "مختصر الشمائل المحمدية","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "مختصر الشمائل المحمدية"}
+,{"Id" : "15222551","IdCounter" : "5996","text2" : "مشكاة المصابيح","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "مشكاة المصابيح"}
+,{"Id" : "17014590","IdCounter" : "6232","text2" : "صحيح الترغيب والترهيب","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "True","Path" : "صحيح الترغيب والترهيب"}
+,{"Id" : "20546341","IdCounter" : "6445","text2" : "تحريم آلات الطرب","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "تحريم آلات الطرب"}
+,{"Id" : "20728939","IdCounter" : "6446","text2" : "حديث إفطار الصائم","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "حديث إفطار الصائم"}
+,{"Id" : "20767372","IdCounter" : "6447","text2" : "تلخيص أحكام الجنائز","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "تلخيص أحكام الجنائز"}
+,{"Id" : "20877089","IdCounter" : "6448","text2" : "تلخيص صفة الصلاة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "تلخيص صفة الصلاة"}
+,{"Id" : "20898047","IdCounter" : "6449","text2" : "تمام المنة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "تمام المنة"}
+,{"Id" : "18286154","IdCounter" : "6421","text2" : "آداب الزفاف","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "آداب الزفاف"}
+,{"Id" : "18408331","IdCounter" : "6422","text2" : "الأجوبة النافعة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الأجوبة النافعة"}
+,{"Id" : "18467867","IdCounter" : "6423","text2" : "الإسراء والمعراج","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الإسراء والمعراج"}
+,{"Id" : "18547942","IdCounter" : "6424","text2" : "الآيات البينات","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الآيات البينات"}
+,{"Id" : "18671876","IdCounter" : "6425","text2" : "التوسل","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "التوسل"}
+,{"Id" : "18853146","IdCounter" : "6426","text2" : "الثمر المستطاب","Parent" : "","InitParent" : "المؤلفات","IsChild" : "True","Path" : "الثمر المستطاب"}
+,{"Id" : "19709196","IdCounter" : "6429","text2" : "الحديث حجة بنفسه في العقائد والأحكام","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الحديث حجة بنفسه في العقائد والأحكام"}
+,{"Id" : "19781925","IdCounter" : "6430","text2" : "الرد المفحم","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الرد المفحم"}
+,{"Id" : "19943081","IdCounter" : "6431","text2" : "العقيدة الطحاوية","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "العقيدة الطحاوية"}
+,{"Id" : "20017625","IdCounter" : "6432","text2" : "مختصر العلو","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "مختصر العلو"}
+,{"Id" : "20166329","IdCounter" : "6433","text2" : "الكلم الطيب","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "الكلم الطيب"}
+,{"Id" : "20237943","IdCounter" : "6434","text2" : "المسح على الجوربين والنعلين","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "المسح على الجوربين والنعلين"}
+,{"Id" : "20309562","IdCounter" : "6435","text2" : "قصة المسيح الدجال","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "قصة المسيح الدجال"}
+,{"Id" : "20398849","IdCounter" : "6436","text2" : "تحذير الساجد","Parent" : "","InitParent" : "المؤلفات","IsChild" : "True","Path" : "تحذير الساجد"}
+,{"Id" : "21404440","IdCounter" : "6450","text2" : "جلباب المرأة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "جلباب المرأة"}
+,{"Id" : "21513992","IdCounter" : "6451","text2" : "حجاب المرأة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "حجاب المرأة"}
+,{"Id" : "21576440","IdCounter" : "6452","text2" : "حجة النبي","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "حجة النبي"}
+,{"Id" : "21725362","IdCounter" : "6453","text2" : "حكم تارك الصلاة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "حكم تارك الصلاة"}
+,{"Id" : "21775184","IdCounter" : "6454","text2" : "خطبة الحاجة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "خطبة الحاجة"}
+,{"Id" : "21802083","IdCounter" : "6455","text2" : "دفاع عن السنة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "دفاع عن السنة"}
+,{"Id" : "21970125","IdCounter" : "6456","text2" : "رفع الأستار","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "رفع الأستار"}
+,{"Id" : "22140811","IdCounter" : "6457","text2" : "صحيح السيرة النبوية","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "صحيح السيرة النبوية"}
+,{"Id" : "22319074","IdCounter" : "6458","text2" : "صفة الفتوى","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "صفة الفتوى"}
+,{"Id" : "22321689","IdCounter" : "6459","text2" : "صفة صلاة النبي صلى الله عليه وسلم","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "صفة صلاة النبي صلى الله عليه وسلم"}
+,{"Id" : "22444392","IdCounter" : "6460","text2" : "صلاة التراويح","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "صلاة التراويح"}
+,{"Id" : "22529718","IdCounter" : "6461","text2" : "صلاة العيدين","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "صلاة العيدين"}
+,{"Id" : "22564064","IdCounter" : "6462","text2" : "فتنة التكفير","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "فتنة التكفير"}
+,{"Id" : "22590165","IdCounter" : "6463","text2" : "حول فقه الواقع","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "حول فقه الواقع"}
+,{"Id" : "22613187","IdCounter" : "6464","text2" : "قيام رمضان","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "قيام رمضان"}
+,{"Id" : "22645173","IdCounter" : "6465","text2" : "مناسك الحج والعمرة","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "مناسك الحج والعمرة"}
+,{"Id" : "22717384","IdCounter" : "6466","text2" : "منزلة السنة في الإسلام","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "منزلة السنة في الإسلام"}
+,{"Id" : "22733046","IdCounter" : "6467","text2" : "نصب المجانيق","Parent" : "","InitParent" : "المؤلفات","IsChild" : "","Path" : "نصب المجانيق"}
+,{"Id" : "23000000","IdCounter" : "6468","text2" : "تراجعات الشيخ الألباني","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "تراجعات الشيخ الألباني"}
+,{"Id" : "23000006","IdCounter" : "6474","text2" : "موسوعة الألباني في العقيدة","Parent" : "","InitParent" : "كتب الأحاديث","IsChild" : "","Path" : "موسوعة الألباني في العقيدة"}
+]
