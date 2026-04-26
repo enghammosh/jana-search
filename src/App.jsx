@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2 } from 'lucide-react';
+import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone } from 'lucide-react';
 
 const normalizeArabic = (text) => {
   if (!text) return "";
@@ -29,8 +29,8 @@ export default function App() {
   // --- States ---
   const [showSplash, setShowSplash] = useState(true);
   const [allData, setAllData] = useState([]);
-  const [searchInput, setSearchInput] = useState(''); // Input value
-  const [searchTerm, setSearchTerm] = useState('');   // Executed search
+  const [searchInput, setSearchInput] = useState(''); 
+  const [searchTerm, setSearchTerm] = useState('');   
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -38,13 +38,13 @@ export default function App() {
   const [selectedHadith, setSelectedHadith] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
-  const [fontSize, setFontSize] = useState(20); // Base font size for results
+  const [fontSize, setFontSize] = useState(20); 
   
   // Navigation State
   const [selectedBooks, setSelectedBooks] = useState([]); 
   const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState('search'); // 'search'|'browse'|'read'|'favorites'
+  const [viewMode, setViewMode] = useState('search'); 
   const [layoutMode, setLayoutMode] = useState('grid'); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -58,7 +58,7 @@ export default function App() {
   const [bookContent, setBookContent] = useState([]);
   const [readingIndex, setReadingIndex] = useState(0);
 
-  // --- Smart Scrolling State ---
+  // Smart Scrolling State
   const scrollContainerRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
@@ -66,11 +66,7 @@ export default function App() {
   const [savedGroups, setSavedGroups] = useState(() => {
     const saved = localStorage.getItem('jana_groups');
     if (saved) {
-      try { 
-        return JSON.parse(saved); 
-      } catch (e) {
-        return {};
-      }
+      try { return JSON.parse(saved); } catch (e) { return {}; }
     }
     return {};
   }); 
@@ -89,58 +85,107 @@ export default function App() {
   
   const fileInputRef = useRef(null);
 
-  // --- Splash Screen Effect ---
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showPwaPrompt, setShowPwaPrompt] = useState(false);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  // UI State Ref for Hardware Back Button Logic
+  const uiStateRef = useRef({});
+  const backPressCountRef = useRef(0);
+
+  useEffect(() => {
+    uiStateRef.current = { 
+      viewMode, selectedHadith, isMobileMenuOpen, showAboutModal, showSaveModal, 
+      activeGroup, groupAction, showPrivacyModal, showTermsModal 
+    };
+  });
+
+  // --- Hardware Back Button Logic (PWA / Mobile) ---
+  useEffect(() => {
+    window.history.pushState({ app: 'jana' }, '');
+
+    const handlePopState = (e) => {
+      const state = uiStateRef.current;
+      const isDeepState = state.viewMode !== 'search' || state.selectedHadith || state.isMobileMenuOpen || 
+                          state.showAboutModal || state.showSaveModal || state.activeGroup || 
+                          state.groupAction.type || state.showPrivacyModal || state.showTermsModal;
+
+      if (isDeepState) {
+        window.history.pushState({ app: 'jana' }, ''); // Trap again
+        
+        // Close Modals & Menus (Top to bottom priority)
+        if (state.isMobileMenuOpen) setIsMobileMenuOpen(false);
+        else if (state.showPrivacyModal) setShowPrivacyModal(false);
+        else if (state.showTermsModal) setShowTermsModal(false);
+        else if (state.showAboutModal) setShowAboutModal(false);
+        else if (state.groupAction.type) setGroupAction({type: null, groupName: ''});
+        else if (state.showSaveModal) setShowSaveModal(null);
+        else if (state.selectedHadith) setSelectedHadith(null);
+        else if (state.viewMode === 'read') setViewMode('browse');
+        else if (state.viewMode === 'favorites' && state.activeGroup) setActiveGroup(null);
+        else if (state.viewMode !== 'search') setViewMode('search');
+      } else {
+        // At root level: Double tap to exit
+        if (backPressCountRef.current === 0) {
+           window.history.pushState({ app: 'jana' }, ''); 
+           backPressCountRef.current = 1;
+           showToast('اضغط مرتين متتاليتين للخروج من التطبيق');
+           setTimeout(() => { backPressCountRef.current = 0; }, 2000);
+        } else {
+           window.history.go(-1); // Let it exit
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // --- PWA Install Prompt Logic ---
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const promptDismissed = localStorage.getItem('pwa_prompt_dismissed');
+
+    if (isStandalone) return; 
+
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!promptDismissed) setShowPwaPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    if (isIOS && !promptDismissed) {
+      setTimeout(() => setShowPwaPrompt(true), 4000);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, [isIOS]);
+
+  const handleInstallPwa = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setShowPwaPrompt(false);
+      }
+    } else if (isIOS) {
+      showToast('في الآيفون: اضغط على أيقونة (المشاركة) بالأسفل ثم (إضافة للشاشة الرئيسية)');
+    }
+  };
+
+  const dismissPwaPrompt = () => {
+    localStorage.setItem('pwa_prompt_dismissed', 'true');
+    setShowPwaPrompt(false);
+  };
+
+  // --- Splash Screen & Data Load ---
   useEffect(() => {
     setTimeout(() => setShowSplash(false), 2500);
   }, []);
 
-  // --- Smart Scroll Tracker ---
-  const checkScrollPosition = () => {
-    if (scrollContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-      // السماحية 5 بكسل لتجنب أخطاء التقريب في الشاشات المختلفة
-      setIsAtBottom(Math.abs(scrollHeight - scrollTop - clientHeight) <= 5);
-    }
-  };
-
-  // إعادة التمرير للأعلى عند تغيير الحديث أو حجم الخط، وإعادة فحص الموقع
-  useEffect(() => {
-    if (viewMode === 'read' && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
-      // مهلة بسيطة لضمان رسم النص الجديد قبل حساب الأبعاد
-      setTimeout(checkScrollPosition, 50);
-    }
-  }, [readingIndex, viewMode, fontSize, bookContent]);
-
-  const handleSmartNext = () => {
-    if (!scrollContainerRef.current) return;
-
-    if (isAtBottom) {
-      // إذا وصلنا للأسفل، انتقل للحديث التالي
-      if (readingIndex < bookContent.length - 1) {
-        setReadingIndex(p => p + 1);
-      }
-    } else {
-      // إذا لم نصل للأسفل، قم بتمرير النص لأسفل بمقدار 85% من الشاشة (للحفاظ على السياق)
-      scrollContainerRef.current.scrollBy({
-        top: scrollContainerRef.current.clientHeight * 0.85,
-        behavior: 'smooth'
-      });
-    }
-  };
-
-  // --- Handle Screen Resize ---
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // --- Save to LocalStorage ---
   useEffect(() => {
     localStorage.setItem('jana_groups', JSON.stringify(savedGroups));
   }, [savedGroups]);
@@ -352,6 +397,30 @@ export default function App() {
     if (view === 'favorites') setActiveGroup(null);
   };
 
+  // --- Smart Scroll Tracker ---
+  const checkScrollPosition = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      setIsAtBottom(Math.abs(scrollHeight - scrollTop - clientHeight) <= 5);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'read' && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+      setTimeout(checkScrollPosition, 50);
+    }
+  }, [readingIndex, viewMode, fontSize, bookContent]);
+
+  const handleSmartNext = () => {
+    if (!scrollContainerRef.current) return;
+    if (isAtBottom) {
+      if (readingIndex < bookContent.length - 1) setReadingIndex(p => p + 1);
+    } else {
+      scrollContainerRef.current.scrollBy({ top: scrollContainerRef.current.clientHeight * 0.85, behavior: 'smooth' });
+    }
+  };
+
   // --- UI Renders ---
   if (showSplash) {
     return (
@@ -359,7 +428,6 @@ export default function App() {
         <div className="bg-white/10 p-8 rounded-[2rem] shadow-2xl backdrop-blur-md border border-emerald-500/30 mb-8 animate-bounce">
           <BookOpen size={90} strokeWidth={1.5} className="text-emerald-300 drop-shadow-lg" />
         </div>
-        {/* Reverted Logo Color to White */}
         <h1 className="text-5xl font-bold font-arabic tracking-wide gold-text-shadow mb-4 text-white">الجنى الداني</h1>
         <p className="text-2xl text-emerald-200 font-arabic gold-text-shadow">من دوحة الألباني</p>
         
@@ -391,8 +459,8 @@ export default function App() {
   return (
     <div className={isDarkMode ? 'dark' : ''}>
       
-      {/* MAIN SCROLLABLE CONTAINER */}
-      <div className={`h-screen overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 ${printItems.length > 0 ? 'print:hidden' : ''}`} dir="rtl">
+      {/* MAIN WRAPPER: Completely hidden during print to fix mobile print issues */}
+      <div className="print:hidden relative h-screen overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300" dir="rtl">
         
         {/* Multi-Selection Bottom Bar */}
         {isSelectionMode && (
@@ -412,19 +480,16 @@ export default function App() {
         {/* --- Main Header Navigation --- */}
         <nav className={`sticky top-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ zIndex: 30 }}>
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            {/* Logo Area */}
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { navigateTo('search'); setIsMobileMenuOpen(false); }}>
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigateTo('search')}>
               <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge">
                 <Library size={28} className="text-white" />
               </div>
               <div>
-                {/* Reverted Logo Color to White */}
                 <h1 className="text-2xl sm:text-3xl font-bold font-arabic leading-none tracking-tight gold-text-shadow text-white">الجنى الداني</h1>
                 <p className="text-sm font-bold uppercase mt-1.5 text-emerald-100 gold-text-shadow font-arabic">من دوحة الألباني</p>
               </div>
             </div>
             
-            {/* Desktop Menu */}
             <div className="hidden md:flex items-center gap-2">
               <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
               <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
@@ -439,7 +504,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Mobile Hamburger Button */}
             <div className="md:hidden flex items-center">
               <button onClick={() => setIsMobileMenuOpen(true)} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
                 <Menu size={26} />
@@ -452,7 +516,7 @@ export default function App() {
           {error === "fallback" || allData.length === 0 ? (
             <div className="max-w-lg mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800">
               <div className="bg-emerald-50 dark:bg-emerald-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><FolderOpen size={40} className="text-emerald-600" /></div>
-              <h2 className="text-2xl font-bold mb-4 font-arabic">المكتبة غير متصلة</h2>
+              <h2 className="text-2xl font-bold mb-4 font-arabic text-slate-900 dark:text-white">المكتبة غير متصلة</h2>
               <input type="file" ref={fileInputRef} multiple webkitdirectory="true" onChange={handleManualUpload} className="hidden" />
               <button onClick={() => fileInputRef.current.click()} className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg font-arabic hover:bg-emerald-600 transition-colors">استيراد البيانات الآن</button>
             </div>
@@ -464,12 +528,11 @@ export default function App() {
                 <div className="p-4 sm:p-6 rounded-[2rem] shadow-sm border bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 transition-all">
                   
                   <div className="flex flex-col md:flex-row gap-4 items-stretch">
-                    {/* Search Input */}
                     <div className="relative flex-1 min-w-0">
                       <input
                         type="text"
                         placeholder="اكتب كلمة، راوي، للبحث..."
-                        className="w-full pr-5 pl-20 py-4 rounded-[1.5rem] border-2 outline-none transition-all font-arabic bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-600 focus:border-emerald-500 text-slate-900 dark:text-white"
+                        className="w-full pr-5 pl-20 py-4 rounded-[1.5rem] border-2 outline-none transition-all font-arabic bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-600 focus:border-emerald-500 text-slate-900 dark:text-white dark:placeholder-slate-400"
                         style={{ fontSize: '18px' }}
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
@@ -485,13 +548,11 @@ export default function App() {
                       </button>
                     </div>
                     
-                    {/* Action Buttons */}
                     <div className="flex gap-2 shrink-0">
                       {filteredResults.length > 0 && (
                         <button 
                            onClick={() => setIsSelectionMode(!isSelectionMode)} 
-                           className={`p-4 rounded-[1.5rem] border-2 transition-all flex items-center justify-center gap-2 font-bold font-arabic ${isSelectionMode ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300'}`}
-                           title="تحديد متعدد"
+                           className={`p-4 rounded-[1.5rem] border-2 transition-all flex items-center justify-center gap-2 font-bold font-arabic ${isSelectionMode ? 'bg-amber-50 border-amber-500 text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300'}`}
                         >
                            <ListChecks size={20} /> <span className="hidden sm:inline">تحديد</span>
                         </button>
@@ -558,7 +619,7 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="flex items-center gap-3 mb-8">
                      <FolderHeart size={32} className="text-emerald-600" />
-                     <h2 className="text-3xl font-bold font-arabic">مجموعاتي المحفوظة</h2>
+                     <h2 className="text-3xl font-bold font-arabic text-slate-900 dark:text-white">مجموعاتي المحفوظة</h2>
                   </div>
                   {Object.keys(savedGroups).length === 0 ? (
                     <div className="text-center py-20 bg-white dark:bg-slate-800/50 rounded-[2rem] border border-slate-200 dark:border-slate-700">
@@ -571,7 +632,7 @@ export default function App() {
                         <div key={groupName} className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 hover:shadow-xl hover:border-emerald-500 transition-all flex flex-col text-center overflow-hidden">
                           <div className="p-8 cursor-pointer flex-grow flex flex-col items-center group" onClick={() => setActiveGroup(groupName)}>
                             <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-colors"><FolderOpen size={32} /></div>
-                            <h3 className="text-2xl font-bold font-arabic mb-2 dark:text-white">{groupName}</h3>
+                            <h3 className="text-2xl font-bold font-arabic mb-2 text-slate-900 dark:text-white">{groupName}</h3>
                             <span className="bg-slate-100 dark:bg-slate-900 text-slate-500 px-3 py-1 rounded-full text-sm font-bold">{hadiths.length} أحاديث</span>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-700 p-3 flex justify-center gap-6">
@@ -586,7 +647,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Header for Active Group with Edit/Delete Controls */}
+              {/* Header for Active Group */}
               {viewMode === 'favorites' && activeGroup && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white dark:bg-slate-800 p-5 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-700">
                   <div className="flex items-center gap-4">
@@ -620,59 +681,68 @@ export default function App() {
                       className="bg-white dark:bg-slate-800/80 p-6 rounded-[2rem] border cursor-pointer hover:shadow-lg hover:border-emerald-500 group flex flex-col justify-between min-h-[160px]"
                     >
                       <div>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white"><Library size={24} /></div>
-                        <h3 className="text-lg font-bold font-arabic leading-tight">{book}</h3>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white transition-colors"><Library size={24} /></div>
+                        <h3 className="text-lg font-bold font-arabic leading-tight text-slate-900 dark:text-white">{book}</h3>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* --- Reading View --- */}
+              {/* --- Reading View (Optimized for Mobile Space & Smart Scroll) --- */}
               {viewMode === 'read' && bookContent.length > 0 && (
                 <div className="animate-in fade-in zoom-in-95 duration-500 max-w-3xl mx-auto">
-                  <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4 items-center">
-                    <button onClick={() => setViewMode('browse')} className="flex items-center gap-2 font-bold font-arabic px-4 py-2 rounded-xl bg-white dark:bg-slate-900 shadow-sm border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><ChevronRight size={18} /> العودة</button>
-                    <h2 className="text-2xl font-black font-arabic text-emerald-800 dark:text-emerald-300 dark:[text-shadow:0_0_6px_rgba(255,215,0,0.7)] text-center truncate flex-1 px-2">{readingBook}</h2>
-                    <div className="flex gap-2 justify-center">
-                      <button onClick={() => setShowSaveModal(bookContent[readingIndex])} className="px-3 py-2 rounded-xl border dark:border-slate-700 bg-white dark:bg-slate-900 hover:text-emerald-600 transition-colors" title="حفظ">
+                  
+                  {/* Space-optimized Header */}
+                  <div className="flex items-center justify-between mb-6 gap-3">
+                    <button onClick={() => setViewMode('browse')} className="p-3 bg-slate-200 dark:bg-slate-700 rounded-full hover:bg-emerald-200 hover:text-emerald-700 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-400 transition-colors shrink-0 shadow-sm">
+                       <ArrowRight size={22} />
+                    </button>
+                    
+                    <h2 className="text-xl sm:text-2xl font-black font-arabic text-emerald-800 dark:text-emerald-300 dark:[text-shadow:0_0_6px_rgba(255,215,0,0.7)] text-center truncate flex-1">
+                      {readingBook}
+                    </h2>
+                    
+                    <div className="flex gap-1.5 shrink-0">
+                      <button onClick={() => setShowSaveModal(bookContent[readingIndex])} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-emerald-600 shadow-sm" title="حفظ">
                         {isHadithSaved(bookContent[readingIndex]) ? <BookmarkCheck size={20} className="text-emerald-500"/> : <BookmarkPlus size={20} />}
                       </button>
-                      <button onClick={() => copyToClipboardRaw(getCleanText(bookContent[readingIndex]), 'reader')} className="px-3 py-2 rounded-xl border dark:border-slate-700 bg-white dark:bg-slate-900 hover:text-emerald-600 transition-colors" title="نسخ">
+                      <button onClick={() => copyToClipboardRaw(getCleanText(bookContent[readingIndex]), 'reader')} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-emerald-600 shadow-sm" title="نسخ">
                         {copyFeedback === 'reader' ? <Check size={20} className="text-emerald-500"/> : <Copy size={20} />}
                       </button>
-                      <button onClick={() => handlePrintSpecific([bookContent[readingIndex]])} className="px-3 py-2 rounded-xl border dark:border-slate-700 bg-white dark:bg-slate-900 hover:text-emerald-600 transition-colors" title="طباعة">
+                      <button onClick={() => handlePrintSpecific([bookContent[readingIndex]])} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-emerald-600 shadow-sm" title="طباعة">
                         <Printer size={20} />
                       </button>
-                      <div className="px-4 py-2 rounded-xl border dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-sm shadow-sm">
-                        {readingIndex + 1} / {bookContent.length}
-                      </div>
                     </div>
                   </div>
                   
-                  {/* Fixed Height Container with Inner Scroll. Inline style ensures zero jumping */}
+                  {/* Fixed Height Container with Inner Smart Scroll */}
                   <div className="bg-white dark:bg-slate-800/90 rounded-[2rem] shadow-lg border dark:border-slate-700 flex flex-col w-full overflow-hidden" style={{ height: '65vh', minHeight: '400px', maxHeight: '800px' }}>
                     <div 
                       ref={scrollContainerRef}
                       onScroll={checkScrollPosition}
-                      className="p-6 sm:p-10 overflow-y-auto flex-grow custom-scrollbar"
+                      className="p-6 sm:p-10 overflow-y-auto flex-grow custom-scrollbar relative"
                     >
-                      <div style={{ fontSize: `${fontSize}px` }} className="leading-loose font-arabic text-justify" dangerouslySetInnerHTML={{ __html: formatText(bookContent[readingIndex].Description, '') }} />
+                      {/* Counter fixed elegantly inside top left */}
+                      <div className="absolute top-4 left-4 px-3 py-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg font-mono text-xs font-bold text-slate-500 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600">
+                        {readingIndex + 1} / {bookContent.length}
+                      </div>
+                      <div style={{ fontSize: `${fontSize}px`, marginTop: '10px' }} className="leading-loose font-arabic text-justify text-slate-900 dark:text-white" dangerouslySetInnerHTML={{ __html: formatText(bookContent[readingIndex].Description, '') }} />
                     </div>
                     
                     {/* Fixed Bottom Bar */}
-                    <div className="p-5 flex items-center justify-between border-t bg-slate-50 dark:bg-slate-900/50 shrink-0 rounded-b-[2rem]">
+                    <div className="p-4 sm:p-5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shrink-0">
                       <button 
                          onClick={handleSmartNext} 
                          disabled={isAtBottom && readingIndex === bookContent.length - 1} 
-                         className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+                         className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm"
                       >
                          <ArrowRight size={20} /> التالي
                       </button>
                       <button 
                          onClick={() => setReadingIndex(p => Math.max(0, p - 1))} 
                          disabled={readingIndex === 0} 
-                         className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+                         className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm"
                       >
                          السابق <ArrowLeft size={20} />
                       </button>
@@ -708,7 +778,7 @@ export default function App() {
                         </div>
                         <div 
                           style={{ fontSize: `${fontSize}px` }}
-                          className={`leading-loose font-arabic text-slate-800 dark:text-slate-100 ${layoutMode === 'list' ? 'md:w-3/4 line-clamp-3' : 'line-clamp-4 flex-grow'}`}
+                          className={`leading-loose font-arabic text-slate-800 dark:text-white ${layoutMode === 'list' ? 'md:w-3/4 line-clamp-3' : 'line-clamp-4 flex-grow'}`}
                           dangerouslySetInnerHTML={{ __html: formatText(item.Description, searchTerm) }}
                         />
                       </div>
@@ -722,12 +792,32 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {/* --- PWA Install Prompt Banner --- */}
+        {showPwaPrompt && (
+          <div className="fixed bottom-4 left-4 right-4 z-[400] animate-in slide-in-from-bottom-full font-arabic">
+            <div className="max-w-md mx-auto bg-emerald-800 text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4 border border-emerald-600">
+               <div className="flex items-center gap-3">
+                 <div className="bg-white/20 p-2 rounded-xl hidden sm:block"><Smartphone size={24} /></div>
+                 <div>
+                   <h4 className="font-bold text-lg leading-tight">تثبيت التطبيق</h4>
+                   <p className="text-xs text-emerald-200 mt-1">أضف التطبيق لشاشتك لتجربة أسرع بدون إنترنت.</p>
+                 </div>
+               </div>
+               <div className="flex items-center gap-2 shrink-0">
+                 <button onClick={handleInstallPwa} className="px-4 py-2 bg-white text-emerald-800 font-bold rounded-xl text-sm hover:bg-slate-100 transition-colors">تثبيت</button>
+                 <button onClick={dismissPwaPrompt} className="p-2 hover:bg-white/20 rounded-full transition-colors"><X size={20} /></button>
+               </div>
+            </div>
+          </div>
+        )}
       </div>
+      {/* END MAIN WRAPPER */}
 
       {/* ========================================================================= */}
-      {/* --- ALL OVERLAYS AND MODALS (Hidden during print to prevent black backgrounds) --- */}
+      {/* --- ALL OVERLAYS AND MODALS (Hidden during print) --- */}
       {/* ========================================================================= */}
-      <div className={printItems.length > 0 ? 'print:hidden' : ''}>
+      <div className={printItems.length > 0 ? 'hidden' : 'block'}>
         
         {/* --- Elegant Side Drawer (Sidebar) for Mobile Menu --- */}
         {isMobileMenuOpen && (
@@ -752,38 +842,9 @@ export default function App() {
                    </div>
                  </div>
                  <button onClick={() => { setIsDarkMode(!isDarkMode); setIsMobileMenuOpen(false); }} className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors">
-                   <span>الوضع المظلم</span>
+                   <span>الوضع الداكن</span>
                    {isDarkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} />}
                  </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- Save Group Modal --- */}
-        {showSaveModal && (
-          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 200 }}>
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowSaveModal(null)}></div>
-            <div className="relative w-full max-w-sm bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-2xl border border-emerald-100 dark:border-slate-700 font-arabic animate-in fade-in zoom-in-95">
-              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">حفظ الحديث</h3><button onClick={() => setShowSaveModal(null)} className="text-slate-400 hover:text-rose-500"><X size={24}/></button></div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">إضافة لمجموعة جديدة:</label>
-                  <div className="flex flex-col gap-3">
-                    <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="اسم المجموعة..." className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500" />
-                    <button onClick={() => handleSaveToGroup(newGroupName)} disabled={!newGroupName.trim()} className="w-full bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50">حفظ المجموعة</button>
-                  </div>
-                </div>
-                {Object.keys(savedGroups).length > 0 && (
-                  <div className="pt-4 border-t dark:border-slate-700">
-                    <label className="block text-sm font-bold mb-3">أو اختر مجموعة سابقة:</label>
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
-                      {Object.keys(savedGroups).map(group => (
-                        <button key={group} onClick={() => handleSaveToGroup(group)} className="bg-slate-100 dark:bg-slate-700 border border-transparent dark:border-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:border-emerald-500 flex-grow text-center transition-colors">{group}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -796,18 +857,18 @@ export default function App() {
             <div className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col bg-white dark:bg-slate-800 border border-emerald-100 dark:border-slate-700 animate-in zoom-in-95">
               <div className="px-6 py-4 border-b dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
                 <div className="flex flex-wrap gap-2">
-                   <button onClick={() => setShowSaveModal(selectedHadith)} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
+                   <button onClick={() => setShowSaveModal(selectedHadith)} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
                      {isHadithSaved(selectedHadith) ? (
-                       <><BookmarkCheck size={18} className="text-emerald-600"/> <span className="font-arabic hidden sm:inline text-slate-700 dark:text-slate-300">محفوظ</span></>
+                       <><BookmarkCheck size={18} className="text-emerald-600"/> <span className="font-arabic hidden sm:inline">محفوظ</span></>
                      ) : (
-                       <><BookmarkPlus size={18} className="text-emerald-700"/> <span className="font-arabic hidden sm:inline text-slate-700 dark:text-slate-300">حفظ</span></>
+                       <><BookmarkPlus size={18} className="text-emerald-700"/> <span className="font-arabic hidden sm:inline">حفظ</span></>
                      )}
                    </button>
-                   <button onClick={() => copyToClipboardRaw(getCleanText(selectedHadith), 'modal')} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
-                     {copyFeedback === 'modal' ? <Check size={18} className="text-emerald-600"/> : <Copy size={18} className="text-emerald-700"/>} <span className="font-arabic hidden sm:inline text-slate-700 dark:text-slate-300">نسخ</span>
+                   <button onClick={() => copyToClipboardRaw(getCleanText(selectedHadith), 'modal')} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                     {copyFeedback === 'modal' ? <Check size={18} className="text-emerald-600"/> : <Copy size={18} className="text-emerald-700"/>} <span className="font-arabic hidden sm:inline">نسخ</span>
                    </button>
-                   <button onClick={() => handleShare(selectedHadith)} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors">
-                     <Share2 size={18} className="text-blue-600"/> <span className="font-arabic hidden sm:inline text-slate-700 dark:text-slate-300">مشاركة</span>
+                   <button onClick={() => handleShare(selectedHadith)} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                     <Share2 size={18} className="text-blue-600"/> <span className="font-arabic hidden sm:inline">مشاركة</span>
                    </button>
                    <button onClick={() => handlePrintSpecific([selectedHadith])} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-700 dark:text-slate-300">
                      <Printer size={18} />
@@ -819,32 +880,32 @@ export default function App() {
                  <div className="mb-6 inline-flex items-center gap-2 font-bold text-sm font-arabic text-emerald-800 bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 px-3 py-1.5 rounded-lg border dark:border-emerald-800">
                    <Bookmark size={16} /> <span>{formatBookName(selectedHadith.path || selectedHadith.Path)}</span>
                  </div>
-                 <div style={{ fontSize: `${fontSize + 4}px` }} className="leading-loose font-arabic text-justify selection:bg-emerald-200" dangerouslySetInnerHTML={{ __html: formatText(selectedHadith.Description, searchTerm) }} />
+                 <div style={{ fontSize: `${fontSize + 4}px` }} className="leading-loose font-arabic text-justify selection:bg-emerald-200 text-slate-900 dark:text-white" dangerouslySetInnerHTML={{ __html: formatText(selectedHadith.Description, searchTerm) }} />
               </div>
             </div>
           </div>
         )}
 
-        {/* --- About Modal --- */}
+        {/* --- About Modal (Scrolling enabled) --- */}
         {showAboutModal && (
           <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 200 }}>
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowAboutModal(false)}></div>
-            <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 text-center animate-in zoom-in-95">
+            <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 text-center animate-in zoom-in-95 overflow-y-auto max-h-[85vh] custom-scrollbar">
               <Library size={60} className="mx-auto text-emerald-600 mb-4 gold-edge" />
-              <h2 className="text-2xl font-bold mb-2">الجنى الداني من دوحة الألباني</h2>
+              <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">الجنى الداني من دوحة الألباني</h2>
               <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.1</p>
               
               <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-8 bg-emerald-50 dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-700 space-y-4 text-justify">
                 <p>
                   هذا التطبيق صدقة جارية، ونسأل الله أن يتقبل هذا العمل خالصاً لوجهه الكريم. تم تطويره كجهد مستمر لتسهيل الوصول والبحث في تراث الشيخ المحدث محمد ناصر الدين الألباني رحمه الله تعالى. نسألكم الدعاء بظهر الغيب.
                   <br/>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block">قام بتطويره: المهندس معاذ مأمون حموش</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block text-slate-900 dark:text-white">قام بتطويره: المهندس معاذ مأمون حموش</span>
                 </p>
                 <hr className="border-emerald-200 dark:border-slate-700" />
                 <p dir="ltr" className="font-sans text-left">
                   This application is an ongoing charity (Sadaqah Jariyah), and we ask Allah to accept this work entirely for His Honorable sake. It was developed as a continuous effort to facilitate access to and search within the legacy of the Muhaddith, Sheikh Muhammad Nasir al-Din al-Albani, may Allah have mercy on him. We ask you to keep us in your prayers.
                   <br/>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block">Developed by: Eng. Moaz Mamoun Hammosh</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block text-slate-900 dark:text-white">Developed by: Eng. Moaz Mamoun Hammosh</span>
                 </p>
               </div>
 
@@ -911,12 +972,12 @@ export default function App() {
 
         {/* --- Group Rename Modal --- */}
         {groupAction.type === 'rename' && (
-          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 200 }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 300 }}>
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setGroupAction({type: null, groupName: ''})}></div>
             <div className="relative w-full max-w-sm bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-2xl border border-slate-200 dark:border-slate-700 font-arabic animate-in fade-in zoom-in-95">
-              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">تغيير اسم المجموعة</h3><button onClick={() => setGroupAction({type: null, groupName: ''})} className="text-slate-400 hover:text-rose-500"><X size={24}/></button></div>
+              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-slate-900 dark:text-white">تغيير اسم المجموعة</h3><button onClick={() => setGroupAction({type: null, groupName: ''})} className="text-slate-400 hover:text-rose-500"><X size={24}/></button></div>
               <div className="space-y-4">
-                <input type="text" value={editGroupName} onChange={e => setEditGroupName(e.target.value)} placeholder="الاسم الجديد..." className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500" />
+                <input type="text" value={editGroupName} onChange={e => setEditGroupName(e.target.value)} placeholder="الاسم الجديد..." className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 text-slate-900 dark:text-white" />
                 <div className="flex w-full gap-3 mt-2">
                   <button onClick={handleRenameGroup} disabled={!editGroupName.trim()} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50 transition-colors shadow-sm">حفظ</button>
                   <button onClick={() => setGroupAction({type: null, groupName: ''})} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-3 rounded-xl font-bold transition-colors hover:bg-slate-200 dark:hover:bg-slate-600 shadow-sm">إلغاء</button>
@@ -928,15 +989,15 @@ export default function App() {
 
         {/* --- Group Delete Modal --- */}
         {groupAction.type === 'delete' && (
-          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 200 }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 300 }}>
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setGroupAction({type: null, groupName: ''})}></div>
             <div className="relative w-full max-w-sm bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-2xl border border-slate-200 dark:border-slate-700 font-arabic animate-in fade-in zoom-in-95 text-center">
               <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4"><Trash2 size={32} /></div>
-              <h3 className="text-xl font-bold mb-2">تأكيد الحذف</h3>
-              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف مجموعة <b>"{groupAction.groupName}"</b>؟ لا يمكن التراجع عن هذا الإجراء.</p>
+              <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">تأكيد الحذف</h3>
+              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف مجموعة <b className="text-slate-800 dark:text-slate-200">"{groupAction.groupName}"</b>؟ لا يمكن التراجع عن هذا الإجراء.</p>
               <div className="flex w-full gap-3 mt-2">
                 <button onClick={handleDeleteGroup} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-4 py-3 rounded-xl font-bold transition-colors shadow-sm">حذف نهائي</button>
-                <button onClick={() => setGroupAction({type: null, groupName: ''})} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-sm">إلغاء</button>
+                <button onClick={() => setGroupAction({type: null, groupName: ''})} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 shadow-sm">إلغاء</button>
               </div>
             </div>
           </div>
@@ -944,15 +1005,44 @@ export default function App() {
 
         {/* --- Group Duplicate Modal --- */}
         {groupAction.type === 'duplicate' && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 200 }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 300 }}>
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setGroupAction({type: null, groupName: ''})}></div>
             <div className="relative w-full max-w-sm bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 text-center">
               <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><Copy size={32} /></div>
-              <h3 className="text-xl font-bold mb-2">تكرار المجموعة</h3>
-              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">هل تريد إنشاء نسخة مطابقة من مجموعة <b>"{groupAction.groupName}"</b>؟</p>
+              <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">تكرار المجموعة</h3>
+              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">هل تريد إنشاء نسخة مطابقة من مجموعة <b className="text-slate-800 dark:text-slate-200">"{groupAction.groupName}"</b>؟</p>
               <div className="flex w-full gap-3 mt-2">
                 <button onClick={confirmDuplicateGroup} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold transition-colors shadow-sm">نعم، إنشاء نسخة</button>
-                <button onClick={() => setGroupAction({type: null, groupName: ''})} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-sm">إلغاء</button>
+                <button onClick={() => setGroupAction({type: null, groupName: ''})} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-sm">إلغاء</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- Save Group Modal (MOVED TO BOTTOM & HIGHEST Z-INDEX) --- */}
+        {showSaveModal && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 500 }}>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowSaveModal(null)}></div>
+            <div className="relative w-full max-w-sm bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-2xl border border-emerald-100 dark:border-slate-700 font-arabic animate-in fade-in zoom-in-95">
+              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-slate-900 dark:text-white">حفظ الحديث</h3><button onClick={() => setShowSaveModal(null)} className="text-slate-400 hover:text-rose-500"><X size={24}/></button></div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-slate-800 dark:text-slate-200">إضافة لمجموعة جديدة:</label>
+                  <div className="flex flex-col gap-3">
+                    <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="اسم المجموعة..." className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 text-slate-900 dark:text-white dark:placeholder-slate-400" />
+                    <button onClick={() => handleSaveToGroup(newGroupName)} disabled={!newGroupName.trim()} className="w-full bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50 transition-colors shadow-sm">حفظ المجموعة</button>
+                  </div>
+                </div>
+                {Object.keys(savedGroups).length > 0 && (
+                  <div className="pt-4 border-t dark:border-slate-700">
+                    <label className="block text-sm font-bold mb-3 text-slate-800 dark:text-slate-200">أو اختر مجموعة سابقة:</label>
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
+                      {Object.keys(savedGroups).map(group => (
+                        <button key={group} onClick={() => handleSaveToGroup(group)} className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-transparent dark:border-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:border-emerald-500 flex-grow text-center transition-colors">{group}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -960,14 +1050,14 @@ export default function App() {
 
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl font-arabic font-bold animate-in slide-in-from-bottom-4 flex items-center gap-2 border border-slate-700" style={{ zIndex: 300 }}>
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl font-arabic font-bold animate-in slide-in-from-bottom-4 flex items-center gap-2 border border-slate-700" style={{ zIndex: 600 }}>
             <CheckCircle2 size={18} className="text-emerald-400" />
             {toastMessage}
           </div>
         )}
       </div>
 
-      {/* --- INVISIBLE PRINT ENGINE (Guarantee Perfect Printing Always) --- */}
+      {/* --- INVISIBLE PRINT ENGINE --- */}
       {printItems.length > 0 && (
          <div className="hidden print:block text-black bg-white min-h-screen p-8" dir="rtl">
             <div className="text-center mb-10 border-b-2 border-black pb-4">
@@ -996,51 +1086,28 @@ export default function App() {
         .font-arabic { font-family: 'Amiri', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* Elegant Floating Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { 
-          width: 14px; 
-          height: 14px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track { 
-          background: transparent; 
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 14px; height: 14px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { 
-          background-color: rgba(148, 163, 184, 0.4); 
-          border-radius: 100px; 
-          border: 4px solid transparent; 
-          background-clip: content-box; 
+          background-color: rgba(148, 163, 184, 0.4); border-radius: 100px; 
+          border: 4px solid transparent; background-clip: content-box; 
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(148, 163, 184, 0.7); 
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { 
-          background-color: rgba(71, 85, 105, 0.4); 
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
-          background-color: rgba(71, 85, 105, 0.8); 
-        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.7); }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(71, 85, 105, 0.4); }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(71, 85, 105, 0.8); }
         
         .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .line-clamp-4 { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
         
-        /* Gold Edges Styling */
         .gold-edge { filter: drop-shadow(0px 0px 3px rgba(255, 215, 0, 0.7)); }
         .gold-text-shadow { text-shadow: 0px 0px 4px rgba(255, 215, 0, 0.6); }
         
         ::selection { background-color: rgba(16, 185, 129, 0.25); color: inherit; }
         .dark ::selection { background-color: rgba(16, 185, 129, 0.35); color: inherit; }
         
-        /* Fix Print Layout Globally */
         @media print {
            @page { margin: 2cm; }
-           body, html, #root { 
-             background: white !important; 
-             height: auto !important; 
-             overflow: visible !important; 
-             position: relative !important;
-           }
-           .print\\:hidden { display: none !important; }
-           .print\\:block { display: block !important; }
+           body, html, #root { background: white !important; height: auto !important; overflow: visible !important; position: relative !important; }
         }
       `}} />
     </div>
