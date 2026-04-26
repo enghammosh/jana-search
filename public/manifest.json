@@ -1,0 +1,23 @@
+{
+    "name": "موسوعة الجنى الداني",
+    "short_name": "الجنى الداني",
+    "description": "محرك بحث ذكي في تراث الشيخ الألباني رحمه الله",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f8fafc",
+    "theme_color": "#065f46",
+    "icons": [
+      {
+        "src": "/logo.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/logo.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ]
+  }

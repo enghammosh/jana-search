@@ -1,2 +1,12 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
+
+/* QA/QC Fix: يضمن عدم تداخل الشاشات أو تعطل عجلة التمرير في الهواتف */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* يمنع المتصفح من التمرير العشوائي ويتركه للتطبيق */
+}
