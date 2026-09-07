@@ -146,58 +146,81 @@ const formatText = (text, highlight) => {
 };
 
 // ==========================================
-// --- AI Engine ---
+// --- AI Engine (Modern Gemini Nano + Fallback) ---
 // ==========================================
 const getAiResponse = async (prompt, history = []) => {
-  if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
-    try {
-      const capabilities = await window.ai.languageModel.capabilities();
-      if (capabilities.available !== 'no') {
-        const session = await window.ai.languageModel.create();
-        let fullPrompt = prompt;
-        if (history.length > 0) {
-          fullPrompt = history.map(msg => `${msg.role === 'user' ? 'المستخدم' : 'المساعد الذكي'}: ${msg.text}`).join('\n\n') + `\n\nالمستخدم: ${prompt}`;
+  // 1. Try On-Device Gemini Nano (window.LanguageModel or legacy window.ai)
+  if (typeof window !== 'undefined') {
+    const ModelClass = window.LanguageModel || window.ai?.languageModel;
+
+    if (ModelClass) {
+      try {
+        let isAvailable = false;
+
+        // Check availability using modern or legacy checks
+        if (typeof ModelClass.availability === 'function') {
+          const status = await ModelClass.availability();
+          isAvailable = (status === 'available' || status === 'readily');
+        } else if (typeof ModelClass.capabilities === 'function') {
+          const caps = await ModelClass.capabilities();
+          isAvailable = (caps.available !== 'no');
+        } else {
+          // If no availability check is exposed, attempt creation directly
+          isAvailable = true;
         }
-        const result = await session.prompt(fullPrompt);
-        session.destroy();
-        return { text: result, model: 'Local: window.ai (Gemini Nano)' };
+
+        if (isAvailable) {
+          const session = await ModelClass.create();
+
+          // Build multi-turn context
+          let fullPrompt = prompt;
+          if (history.length > 0) {
+            fullPrompt = history
+              .map(msg => `${msg.role === 'user' ? 'المستخدم' : 'المساعد الذكي'}: ${msg.text}`)
+              .join('\n\n') + `\n\nالمستخدم: ${prompt}`;
+          }
+
+          const result = await session.prompt(fullPrompt);
+          session.destroy();
+          return { text: result, model: 'Local: Gemini Nano' };
+        }
+      } catch (nanoError) {
+        console.warn('Gemini Nano on-device execution failed, falling back to cloud API...', nanoError);
       }
-    } catch (e) {
-      console.log('Local window.ai failed, falling back to API...', e);
     }
   }
-  
+
+  // 2. Cloud Fallback (Gemini Flash)
   try {
-    const apiKey = ""; // Canvas injects this automatically
+    // Add your Google AI Studio API key here if you want cloud fallback for visitors without Gemini Nano
+    const apiKey = ""; 
+    
+    if (!apiKey) {
+      throw new Error("On-device AI (Gemini Nano) is not enabled in this browser, and no cloud API key is configured.");
+    }
+
     let contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
     contents.push({ role: 'user', parts: [{ text: prompt }] });
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents })
     });
 
     if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`);
+      throw new Error(`HTTP Error: ${response.status}`);
     }
 
-    // Use .text() then JSON.parse() to safely catch "Unexpected end of input"
-    const textData = await response.text();
-    try {
-        const data = JSON.parse(textData);
-        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من توليد إجابة في الوقت الحالي.";
-        return { text: textResponse, model: 'API: gemini-2.5-flash' };
-    } catch (parseError) {
-        console.error("AI JSON Parse Error:", parseError, textData);
-        return { text: "عذراً، حدث خطأ أثناء معالجة استجابة الذكاء الاصطناعي.", model: 'Error' };
-    }
+    const data = await response.json();
+    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من توليد إجابة في الوقت الحالي.";
+    return { text: textResponse, model: 'Cloud: Gemini 2.5 Flash' };
   } catch (e) {
-    console.error("AI Network/Fetch Error:", e);
-    return { text: "حدث خطأ في الاتصال بمحرك الذكاء الاصطناعي. يرجى المحاولة لاحقاً.", model: 'Error' };
+    console.error("AI Generation Error:", e);
+    return { text: "حدث خطأ في الاتصال بمحرك الذكاء الاصطناعي. يرجى التأكد من تفعيل الذكاء الاصطناعي في المتصفح.", model: 'Error' };
   }
 };
 
