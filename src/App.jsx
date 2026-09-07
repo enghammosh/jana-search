@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
-import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload } from 'lucide-react';
+import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings } from 'lucide-react';
 
 // ==========================================
 // --- Error Boundary to prevent White Screens ---
@@ -146,81 +146,92 @@ const formatText = (text, highlight) => {
 };
 
 // ==========================================
-// --- AI Engine (Modern Gemini Nano + Fallback) ---
+// --- AI Engine ---
 // ==========================================
-const getAiResponse = async (prompt, history = []) => {
-  // 1. Try On-Device Gemini Nano (window.LanguageModel or legacy window.ai)
-  if (typeof window !== 'undefined') {
-    const ModelClass = window.LanguageModel || window.ai?.languageModel;
-
-    if (ModelClass) {
-      try {
-        let isAvailable = false;
-
-        // Check availability using modern or legacy checks
-        if (typeof ModelClass.availability === 'function') {
-          const status = await ModelClass.availability();
-          isAvailable = (status === 'available' || status === 'readily');
-        } else if (typeof ModelClass.capabilities === 'function') {
-          const caps = await ModelClass.capabilities();
-          isAvailable = (caps.available !== 'no');
-        } else {
-          // If no availability check is exposed, attempt creation directly
-          isAvailable = true;
-        }
-
-        if (isAvailable) {
-          const session = await ModelClass.create();
-
-          // Build multi-turn context
-          let fullPrompt = prompt;
-          if (history.length > 0) {
-            fullPrompt = history
-              .map(msg => `${msg.role === 'user' ? 'المستخدم' : 'المساعد الذكي'}: ${msg.text}`)
-              .join('\n\n') + `\n\nالمستخدم: ${prompt}`;
+const getAiResponse = async (prompt, history = [], apiKey = "", selectedModel = "gemini-nano") => {
+  
+  // 1. Try On-Device Gemini Nano if selected (or as a fallback if no API key)
+  if (selectedModel === "gemini-nano" || !apiKey) {
+    if (typeof window !== 'undefined') {
+      const ModelClass = window.LanguageModel || window.ai?.languageModel;
+      if (ModelClass) {
+        try {
+          let isAvailable = false;
+          if (typeof ModelClass.availability === 'function') {
+            const status = await ModelClass.availability();
+            isAvailable = (status === 'available' || status === 'readily');
+          } else if (typeof ModelClass.capabilities === 'function') {
+            const caps = await ModelClass.capabilities();
+            isAvailable = (caps.available !== 'no');
+          } else {
+            isAvailable = true;
           }
 
-          const result = await session.prompt(fullPrompt);
-          session.destroy();
-          return { text: result, model: 'Local: Gemini Nano' };
+          if (isAvailable) {
+            const session = await ModelClass.create();
+            let fullPrompt = prompt;
+            if (history.length > 0) {
+              fullPrompt = history.map(msg => `${msg.role === 'user' ? 'المستخدم' : 'المساعد الذكي'}: ${msg.text}`).join('\n\n') + `\n\nالمستخدم: ${prompt}`;
+            }
+            const result = await session.prompt(fullPrompt);
+            session.destroy();
+            return { text: result, model: 'Local: Gemini Nano' };
+          }
+        } catch (e) {
+          console.log('Local AI execution failed, falling back...', e);
         }
-      } catch (nanoError) {
-        console.warn('Gemini Nano on-device execution failed, falling back to cloud API...', nanoError);
       }
+    }
+    
+    // If Nano was requested but failed/unavailable, and they have no API key
+    if (!apiKey || apiKey.trim().length < 10) {
+      return { text: "عذراً، الذكاء الاصطناعي المحلي (Gemini Nano) غير مفعل في متصفحك، ولا يوجد مفتاح API للاتصال السحابي.", model: 'System' };
     }
   }
 
-  // 2. Cloud Fallback (Gemini Flash)
+  // 2. Cloud API Execution
+  if (!apiKey || apiKey.trim().length < 10) {
+    return { text: "عذراً، لم يتم العثور على مفتاح API صالح لدعم ميزات الذكاء الاصطناعي.", model: 'System' };
+  }
+  
+  // If Nano failed but they provided an API key, fallback to Flash
+  const targetCloudModel = selectedModel === "gemini-nano" ? "gemini-2.5-flash" : selectedModel;
+  
   try {
-    // Add your Google AI Studio API key here if you want cloud fallback for visitors without Gemini Nano
-    const apiKey = ""; 
-    
-    if (!apiKey) {
-      throw new Error("On-device AI (Gemini Nano) is not enabled in this browser, and no cloud API key is configured.");
-    }
-
     let contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
     contents.push({ role: 'user', parts: [{ text: prompt }] });
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetCloudModel}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents })
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
+        const errorText = await response.text();
+        let exactError = `HTTP Error: ${response.status}`;
+        try {
+            const errObj = JSON.parse(errorText);
+            if (errObj.error && errObj.error.message) { exactError = errObj.error.message; }
+        } catch (e) {}
+        console.error("API Rejected Request:", exactError);
+        return { text: `**فشل الاتصال بجوجل!**\nالسبب: ${exactError}\n\nيرجى التأكد من أن مفتاح API صحيح وصالح وتأكد من نسخه كاملاً.`, model: 'Error' };
     }
 
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من توليد إجابة في الوقت الحالي.";
-    return { text: textResponse, model: 'Cloud: Gemini 2.5 Flash' };
+    const textData = await response.text();
+    try {
+        const data = JSON.parse(textData);
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من توليد إجابة في الوقت الحالي.";
+        return { text: textResponse, model: `API: ${targetCloudModel}` };
+    } catch (parseError) {
+        return { text: "عذراً، حدث خطأ أثناء قراءة إجابة الذكاء الاصطناعي.", model: 'Error' };
+    }
   } catch (e) {
-    console.error("AI Generation Error:", e);
-    return { text: "حدث خطأ في الاتصال بمحرك الذكاء الاصطناعي. يرجى التأكد من تفعيل الذكاء الاصطناعي في المتصفح.", model: 'Error' };
+    console.error("AI Network Error:", e);
+    return { text: "حدث خطأ في الاتصال بالإنترنت أو بمحرك الذكاء الاصطناعي. يرجى المحاولة لاحقاً.", model: 'Error' };
   }
 };
 
@@ -243,6 +254,12 @@ function MainApp() {
   const [error, setError] = useState(null);
   const [needsFileUpload, setNeedsFileUpload] = useState(false);
   
+  // Storage & AI Configuration States
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('jana_gemini_api_key') || '');
+  const [selectedAiModel, setSelectedAiModel] = useState(() => localStorage.getItem('jana_gemini_model') || 'gemini-nano');
+  const [hasAiCapabilities, setHasAiCapabilities] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
   // Search & AI States
   const [searchMode, setSearchMode] = useState('normal'); // normal, ai, fatwa
   const [searchInput, setSearchInput] = useState(''); 
@@ -255,22 +272,35 @@ function MainApp() {
   const [fatwaChatInput, setFatwaChatInput] = useState('');
   const [isFatwaChatLoading, setIsFatwaChatLoading] = useState(false);
 
-  // Live Search Effect (Only for normal search)
+// --- AI Availability Check ---
   useEffect(() => {
-    if (searchMode === 'normal') {
-      if (searchInput.trim() === '') {
-        setSearchTerm('');
-        setIsSearching(false);
-        return;
+    const checkAiAvailability = async () => {
+      let localAiAvailable = false;
+      if (typeof window !== 'undefined') {
+         const ModelClass = window.LanguageModel || window.ai?.languageModel;
+         if (ModelClass) {
+           try {
+             if (typeof ModelClass.availability === 'function') {
+                const status = await ModelClass.availability();
+                localAiAvailable = (status === 'available' || status === 'readily');
+             } else if (typeof ModelClass.capabilities === 'function') {
+                const cap = await ModelClass.capabilities();
+                localAiAvailable = cap.available !== 'no';
+             }
+           } catch (e) {}
+         }
       }
-      setIsSearching(true);
-      const delayFn = setTimeout(() => {
-        setSearchTerm(searchInput);
-        setIsSearching(false);
-      }, 300);
-      return () => clearTimeout(delayFn);
-    }
-  }, [searchInput, searchMode]);
+      const hasKey = userApiKey && userApiKey.trim().length > 10;
+      const available = localAiAvailable || hasKey;
+      
+      setHasAiCapabilities(available);
+      
+      if (!available && (searchMode === 'ai' || searchMode === 'fatwa')) {
+        setSearchMode('normal');
+      }
+    };
+    checkAiAvailability();
+  }, [userApiKey, searchMode]);
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedHadith, setSelectedHadith] = useState(null);
@@ -331,7 +361,7 @@ function MainApp() {
   useEffect(() => {
     uiStateRef.current = { 
       viewMode, selectedHadith, aiActionModal, isMobileMenuOpen, showAboutModal, showSaveModal, 
-      activeGroup, groupAction, showPrivacyModal, showTermsModal 
+      activeGroup, groupAction, showPrivacyModal, showTermsModal, showSettingsModal 
     };
   });
 
@@ -343,7 +373,7 @@ function MainApp() {
       const state = uiStateRef.current;
       const isDeepState = state.viewMode !== 'search' || state.selectedHadith || state.aiActionModal || state.isMobileMenuOpen || 
                           state.showAboutModal || state.showSaveModal || state.activeGroup || 
-                          state.groupAction.type || state.showPrivacyModal || state.showTermsModal;
+                          state.groupAction.type || state.showPrivacyModal || state.showTermsModal || state.showSettingsModal;
 
       if (isDeepState) {
         window.history.pushState({ app: 'jana' }, ''); 
@@ -351,6 +381,7 @@ function MainApp() {
         else if (state.showPrivacyModal) setShowPrivacyModal(false);
         else if (state.showTermsModal) setShowTermsModal(false);
         else if (state.showAboutModal) setShowAboutModal(false);
+        else if (state.showSettingsModal) setShowSettingsModal(false);
         else if (state.groupAction.type) setGroupAction({type: null, groupName: ''});
         else if (state.showSaveModal) setShowSaveModal(null);
         else if (state.aiActionModal) setAiActionModal(null);
@@ -495,11 +526,11 @@ function MainApp() {
           ? `أنت مساعد ذكاء اصطناعي ولست مفتياً. قم بشرح هذا الحديث النبوي بناءً على المعاني المعتبرة بأسلوب سهل ومختصر، مع بيان الفوائد المستفادة:\n\n"${cleanHadith}"`
           : `Translate the following Arabic Hadith to clear, accurate English, preserving its Islamic context and deep meaning:\n\n"${cleanHadith}"`;
 
-        const resultObj = await getAiResponse(prompt);
+        const resultObj = await getAiResponse(prompt, [], userApiKey, selectedAiModel);
         setAiActionModal({ type: actionType, item, loading: false, result: resultObj.text, modelName: resultObj.model });
     } catch (err) {
         console.error("AI Action Error:", err);
-        setAiActionModal({ type: actionType, item, loading: false, result: 'حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي.', modelName: 'Error' });
+        setAiActionModal({ type: actionType, item, loading: false, result: 'حدث خطأ غير متوقع أثناء معالجة الطلب.', modelName: 'Error' });
     }
   };
 
@@ -540,7 +571,7 @@ function MainApp() {
       قم بتحليل المقصد الشرعي لهذا البحث، واستخرج 5 إلى 7 كلمات مفتاحية (جذور كلمات، مصطلحات شرعية دقيقة، وألفاظ نبوية فصحى) من المحتمل جداً وجودها في متون الأحاديث التي تتناول هذا الموضوع. 
       لا تكتب أي مقدمات أو شروحات، فقط اكتب الكلمات المفتاحية مفصولة بمسافة واحدة.`;
       
-      const keywordsObj = await getAiResponse(prompt);
+      const keywordsObj = await getAiResponse(prompt, [], userApiKey, selectedAiModel);
       setSearchTerm(keywordsObj.text.replace(/[.,،"']/g, '').trim());
       setIsSearching(false);
     }
@@ -551,7 +582,7 @@ function MainApp() {
       مثال: إذا كان السؤال 'حكم تارك الصلاة'، تكون الكلمات: 'ترك صلاة كفر يشرك يكفر عهد'.
       أعطني الكلمات المفتاحية فقط مفصولة بمسافة وبدون أي كلام آخر.`;
       
-      const keywordsStrObj = await getAiResponse(keywordPrompt);
+      const keywordsStrObj = await getAiResponse(keywordPrompt, [], userApiKey, selectedAiModel);
       let searchWords = keywordsStrObj.text.replace(/[.,،"']/g, '').trim().split(/\s+/).filter(w => w.length > 2);
       
       if (searchWords.length === 0) searchWords = normalizeArabic(searchInput).split(/\s+/).filter(w => w.length > 2);
@@ -591,7 +622,7 @@ function MainApp() {
       أثناء الشرح، استشهد بالأحاديث وادمج أرقامها بداخل سياق كلامك بين أقواس مربعة. مثال: "كما جاء في الحديث [1] أن...".
       في النهاية، ضع ملخصاً بعنوان "**خلاصة الحكم:**".`;
       
-      const resultObj = await getAiResponse(fatwaPrompt);
+      const resultObj = await getAiResponse(fatwaPrompt, [], userApiKey, selectedAiModel);
       setAiFatwaResult({ originalPrompt: fatwaPrompt, text: resultObj.text, hadiths: topHadiths, messages: [{ role: 'model', text: resultObj.text }], modelName: resultObj.model });
       setIsSearching(false);
     }
@@ -604,7 +635,7 @@ function MainApp() {
     setAiFatwaResult(prev => ({ ...prev, messages: [...prev.messages, userMsg] }));
     setFatwaChatInput('');
     setIsFatwaChatLoading(true);
-    const aiReplyObj = await getAiResponse(userMsg.text, historyToPass);
+    const aiReplyObj = await getAiResponse(userMsg.text, historyToPass, userApiKey, selectedAiModel);
     setAiFatwaResult(prev => ({ ...prev, messages: [...prev.messages, { role: 'model', text: aiReplyObj.text }], modelName: aiReplyObj.model }));
     setIsFatwaChatLoading(false);
   };
@@ -636,7 +667,7 @@ function MainApp() {
     if (searchMode === 'fatwa') return []; 
     if (viewMode === 'search' && deferredSearchTerm.length < 2 && deferredSelectedBooks.length === 0 && deferredSelectedStatuses.length === 0) return [];
 
-    if (searchMode === 'ai') {
+    if (searchMode === 'ai' && hasAiCapabilities) {
       const searchWords = q.split(/\s+/).filter(w => w.length > 1);
       const scoredResults = [];
       allData.forEach(item => {
@@ -662,7 +693,7 @@ function MainApp() {
         return matchesBook && matchesStatus && matchesSearch;
       }).slice(0, 70); 
     }
-  }, [deferredSearchTerm, allData, deferredSelectedBooks, deferredSelectedStatuses, viewMode, searchMode, activeGroup, savedGroups]);
+  }, [deferredSearchTerm, allData, deferredSelectedBooks, deferredSelectedStatuses, viewMode, searchMode, activeGroup, savedGroups, hasAiCapabilities]);
 
   // --- Utilities ---
   const toggleStatus = (status) => setSelectedStatuses(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
@@ -689,8 +720,18 @@ function MainApp() {
   const handleShare = async (item) => {
     const textToShare = getCleanText(item);
     if (navigator.share) {
-      try { await navigator.share({ title: 'حديث من الجنى الداني', text: textToShare }); } catch (e) {}
-    } else { copyToClipboardRaw(textToShare, 'share'); }
+      try { 
+        await navigator.share({ title: 'حديث من الجنى الداني', text: textToShare }); 
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          copyToClipboardRaw(textToShare, 'share');
+          showToast('لم يتمكن المتصفح من فتح نافذة المشاركة، تم النسخ بدلاً من ذلك.');
+        }
+      }
+    } else { 
+      copyToClipboardRaw(textToShare, 'share'); 
+      showToast('المشاركة غير مدعومة في هذا المتصفح، تم النسخ بدلاً من ذلك.');
+    }
   };
 
   const handlePrintSpecific = (itemsToPrint) => {
@@ -827,12 +868,12 @@ function MainApp() {
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
               <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
                 <Library size={28} className="text-white" />
-                <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5"><Sparkles size={10} className="text-white"/></div>
+                {hasAiCapabilities && <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5"><Sparkles size={10} className="text-white"/></div>}
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold font-arabic leading-none tracking-tight gold-text-shadow text-white">الجنى الداني</h1>
                 <p className="text-sm font-bold uppercase mt-1.5 text-emerald-100 gold-text-shadow font-arabic flex items-center gap-1">
-                  من دوحة الألباني <span className="text-xs bg-emerald-900/50 px-1 rounded border border-emerald-700">AI</span>
+                  من دوحة الألباني {hasAiCapabilities && <span className="text-xs bg-emerald-900/50 px-1 rounded border border-emerald-700">AI</span>}
                 </p>
               </div>
             </div>
@@ -877,7 +918,7 @@ function MainApp() {
                 <div className="p-4 sm:p-6 rounded-[2rem] shadow-sm border bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 transition-all">
                   
                   {/* AI Search Mode Tabs */}
-                  {viewMode === 'search' && (
+                  {viewMode === 'search' && hasAiCapabilities && (
                     <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl mb-6 relative overflow-x-auto no-scrollbar border dark:border-slate-700">
                       <button onClick={() => {setSearchMode('normal'); setSearchInput(''); setSearchTerm('');}} className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm font-arabic flex justify-center items-center gap-2 whitespace-nowrap transition-all ${searchMode === 'normal' ? 'bg-white dark:bg-slate-800 shadow-sm text-emerald-700 dark:text-emerald-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}>
                         <Search size={18} /> بحث عادي
@@ -1066,9 +1107,13 @@ function MainApp() {
                                       <div className={`p-2 rounded-full border-2 ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 text-transparent'}`}><Check size={18} /></div>
                                     ) : (
                                       <>
-                                        <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
-                                        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                        {hasAiCapabilities && (
+                                          <>
+                                            <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
+                                            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                          </>
+                                        )}
                                         <button onClick={(e) => { e.stopPropagation(); setShowSaveModal(item); }} className={`p-2 rounded-full transition-colors ${isSaved ? 'text-emerald-600' : 'bg-slate-100 text-slate-400 hover:text-emerald-600'}`}><BookmarkPlus size={18} /></button>
                                         <button onClick={(e) => { e.stopPropagation(); copyToClipboardRaw(getCleanText(item), idx); }} className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-emerald-600">{copyFeedback === idx ? <Check size={18} /> : <Copy size={18} />}</button>
                                       </>
@@ -1109,9 +1154,13 @@ function MainApp() {
                                 <div className={`p-2 rounded-full border-2 ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 text-transparent'}`}><Check size={18} /></div>
                               ) : (
                                 <>
-                                  <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
-                                  <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                  {hasAiCapabilities && (
+                                    <>
+                                      <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
+                                      <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                    </>
+                                  )}
                                   <button onClick={(e) => { e.stopPropagation(); setShowSaveModal(item); }} className={`p-2 rounded-full transition-colors ${isSaved ? 'text-emerald-600' : 'bg-slate-100 text-slate-400 hover:text-emerald-600'}`}><BookmarkPlus size={18} /></button>
                                   <button onClick={(e) => { e.stopPropagation(); copyToClipboardRaw(getCleanText(item), idx); }} className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-emerald-600">{copyFeedback === idx ? <Check size={18} /> : <Copy size={18} />}</button>
                                 </>
@@ -1167,7 +1216,7 @@ function MainApp() {
                       {readingBook}
                     </h2>
                     <div className="flex gap-1.5 shrink-0">
-                      <button onClick={() => handleAiAction(bookContent[readingIndex], 'explain')} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-blue-600 shadow-sm" title="شرح الذكاء الاصطناعي"><Sparkles size={20} /></button>
+                      {hasAiCapabilities && <button onClick={() => handleAiAction(bookContent[readingIndex], 'explain')} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-blue-600 shadow-sm" title="شرح الذكاء الاصطناعي"><Sparkles size={20} /></button>}
                       <button onClick={() => setShowSaveModal(bookContent[readingIndex])} className="p-3 rounded-full border dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-emerald-600 shadow-sm" title="حفظ">
                         {isHadithSaved(bookContent[readingIndex]) ? <BookmarkCheck size={20} className="text-emerald-500"/> : <BookmarkPlus size={20} />}
                       </button>
@@ -1293,6 +1342,8 @@ function MainApp() {
                  <button onClick={() => { navigateTo('search'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Search size={24} className="text-emerald-300" /> البحث الرئيسي</button>
                  <button onClick={() => { navigateTo('browse'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Library size={24} className="text-emerald-300" /> تصفح المكتبة</button>
                  <button onClick={() => { navigateTo('favorites'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><FolderHeart size={24} className="text-emerald-300" /> مجموعاتي المحفوظة</button>
+                 <div className="w-full h-px bg-white/10 my-2"></div>
+                 <button onClick={() => { setShowSettingsModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Settings size={24} className="text-emerald-300" /> إعدادات الذكاء الاصطناعي</button>
                  <button onClick={() => { setShowAboutModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Info size={24} className="text-emerald-300" /> عن التطبيق والشروط</button>
                  <div className="w-full h-px bg-white/10 my-2"></div>
                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl text-white">
@@ -1307,6 +1358,68 @@ function MainApp() {
                    {isDarkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} />}
                  </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- Settings Modal (AI Configuration) --- */}
+        {showSettingsModal && (
+          <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 500 }}>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm animate-in fade-in" onClick={() => setShowSettingsModal(false)}></div>
+            <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-6 sm:p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 animate-in zoom-in-95">
+               <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold flex items-center gap-2 text-emerald-700 dark:text-emerald-400"><Settings size={28} className="text-slate-500" /> إعدادات الذكاء الاصطناعي</h2>
+                  <button onClick={() => setShowSettingsModal(false)} className="text-slate-400 hover:text-rose-500 transition-colors"><X size={24}/></button>
+               </div>
+               
+               <div className="space-y-6">
+                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 sm:p-5 rounded-2xl border border-blue-100 dark:border-blue-900/50 text-sm leading-relaxed text-blue-800 dark:text-blue-300">
+                    <p className="mb-3">لتفعيل ميزات الذكاء الاصطناعي (البحث الذكي، الفتوى، الشرح والترجمة) في حال عدم دعم متصفحك للمحرك الداخلي، يمكنك الحصول على مفتاح API مجاني من جوجل:</p>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      انقر هنا للانتقال إلى موقع Google AI Studio <ChevronRight size={14}/>
+                    </a>
+                 </div>
+
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">مفتاح API (Gemini API Key):</label>
+                    <input 
+                       type="password" 
+                       value={userApiKey} 
+                       onChange={e => {
+                         setUserApiKey(e.target.value);
+                         localStorage.setItem('jana_gemini_api_key', e.target.value);
+                       }} 
+                       placeholder="الصق المفتاح الخاص بك هنا..." 
+                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 text-sm font-mono text-slate-800 dark:text-slate-100 placeholder-slate-400" 
+                    />
+                 </div>
+
+                 <div className="mt-4">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">اختر نموذج الذكاء الاصطناعي (Model):</label>
+                    <select
+                       value={selectedAiModel}
+                       onChange={e => {
+                         setSelectedAiModel(e.target.value);
+                         localStorage.setItem('jana_gemini_model', e.target.value);
+                       }}
+                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 text-sm font-bold text-slate-800 dark:text-slate-100"
+                       dir="ltr"
+                    >
+                       <option value="gemini-nano">Gemini Nano (محلي بالكامل - بدون إنترنت)</option>
+                       <option value="gemini-3.6-flash">gemini-3.6-flash (سريع وممتاز - مستحسن)</option>
+                       <option value="gemini-3.5-flash">gemini-3.5-flash (مستقر وعام)</option>
+                       <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (سريع جداً وخفيف)</option>
+                       <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (احترافي ودقيق)</option>
+                    </select>
+                 </div>
+                 
+                 <div className="flex items-start sm:items-center gap-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl">
+                   <ShieldCheck size={20} className="text-emerald-500 shrink-0" />
+                   <p>يتم حفظ هذه الإعدادات والمفتاح محلياً في جهازك فقط ولن يتم إرسالها لأي جهة سوى خوادم Google.</p>
+                 </div>
+                 
+                 <button onClick={() => setShowSettingsModal(false)} className="w-full py-3 sm:py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-sm text-lg">حفظ وإغلاق</button>
+               </div>
             </div>
           </div>
         )}
@@ -1374,14 +1487,17 @@ function MainApp() {
               <div className="px-6 py-4 border-b dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
                 <div className="flex flex-wrap gap-2">
                    {/* AI Buttons in Modal */}
-                   <button onClick={() => { setSelectedHadith(null); handleAiAction(selectedHadith, 'explain'); }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors">
-                     <Sparkles size={18}/> <span className="font-arabic hidden sm:inline">شرح ذكي</span>
-                   </button>
-                   <button onClick={() => { setSelectedHadith(null); handleAiAction(selectedHadith, 'translate'); }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors">
-                     <Languages size={18}/> <span className="font-arabic hidden sm:inline">ترجمة</span>
-                   </button>
-
-                   <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                   {hasAiCapabilities && (
+                     <>
+                       <button onClick={() => { setSelectedHadith(null); handleAiAction(selectedHadith, 'explain'); }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors">
+                         <Sparkles size={18}/> <span className="font-arabic hidden sm:inline">شرح ذكي</span>
+                       </button>
+                       <button onClick={() => { setSelectedHadith(null); handleAiAction(selectedHadith, 'translate'); }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors">
+                         <Languages size={18}/> <span className="font-arabic hidden sm:inline">ترجمة</span>
+                       </button>
+                       <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                     </>
+                   )}
 
                    <button onClick={() => setShowSaveModal(selectedHadith)} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
                      {isHadithSaved(selectedHadith) ? (
