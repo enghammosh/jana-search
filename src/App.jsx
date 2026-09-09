@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings } from 'lucide-react';
-
+import HelpModal from './HelpModal';
 // ==========================================
 // --- Error Boundary to prevent White Screens ---
 // ==========================================
@@ -253,7 +253,8 @@ function MainApp() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [needsFileUpload, setNeedsFileUpload] = useState(false);
-  
+  const [showHelpModal, setShowHelpModal] = useState(false);
+
   // Storage & AI Configuration States
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('jana_gemini_api_key') || '');
   const [selectedAiModel, setSelectedAiModel] = useState(() => localStorage.getItem('jana_gemini_model') || 'gemini-nano');
@@ -361,7 +362,7 @@ function MainApp() {
   useEffect(() => {
     uiStateRef.current = { 
       viewMode, selectedHadith, aiActionModal, isMobileMenuOpen, showAboutModal, showSaveModal, 
-      activeGroup, groupAction, showPrivacyModal, showTermsModal, showSettingsModal 
+      activeGroup, groupAction, showPrivacyModal, showTermsModal, showSettingsModal, showHelpModal 
     };
   });
 
@@ -373,11 +374,12 @@ function MainApp() {
       const state = uiStateRef.current;
       const isDeepState = state.viewMode !== 'search' || state.selectedHadith || state.aiActionModal || state.isMobileMenuOpen || 
                           state.showAboutModal || state.showSaveModal || state.activeGroup || 
-                          state.groupAction.type || state.showPrivacyModal || state.showTermsModal || state.showSettingsModal;
+                          state.groupAction.type || state.showPrivacyModal || state.showTermsModal || state.showSettingsModal || state.showHelpModal;
 
       if (isDeepState) {
         window.history.pushState({ app: 'jana' }, ''); 
         if (state.isMobileMenuOpen) setIsMobileMenuOpen(false);
+        else if (state.showHelpModal) setShowHelpModal(false);
         else if (state.showPrivacyModal) setShowPrivacyModal(false);
         else if (state.showTermsModal) setShowTermsModal(false);
         else if (state.showAboutModal) setShowAboutModal(false);
@@ -882,6 +884,7 @@ function MainApp() {
               <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
               <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
               <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
+              <button onClick={() => setShowHelpModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">دليل الاستخدام</span></button>
               <div className="w-px h-6 bg-white/20 mx-2"></div>
               <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
                 <button onClick={() => setFontSize(prev => Math.min(prev + 2, 40))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تكبير الخط"><ZoomIn size={18}/></button>
@@ -1345,6 +1348,7 @@ function MainApp() {
                  <div className="w-full h-px bg-white/10 my-2"></div>
                  <button onClick={() => { setShowSettingsModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Settings size={24} className="text-emerald-300" /> إعدادات الذكاء الاصطناعي</button>
                  <button onClick={() => { setShowAboutModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Info size={24} className="text-emerald-300" /> عن التطبيق والشروط</button>
+                 <button onClick={() => { setShowHelpModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> دليل الاستخدام</button>
                  <div className="w-full h-px bg-white/10 my-2"></div>
                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl text-white">
                    <span className="font-arabic font-bold text-lg">حجم الخط:</span>
@@ -1535,17 +1539,17 @@ function MainApp() {
             <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 text-center animate-in zoom-in-95 overflow-y-auto max-h-[85vh] custom-scrollbar">
               <Library size={60} className="mx-auto text-emerald-600 mb-4 gold-edge" />
               <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">الجنى الداني من دوحة الألباني</h2>
-              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.1</p>
+              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.9</p>
               
               <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-8 bg-emerald-50 dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-700 space-y-4 text-justify">
                 <p>
-                  هذا التطبيق صدقة جارية، ونسأل الله أن يتقبل هذا العمل خالصاً لوجهه الكريم. تم تطويره كجهد مستمر لتسهيل الوصول والبحث في تراث الشيخ المحدث محمد ناصر الدين الألباني رحمه الله تعالى. نسألكم الدعاء بظهر الغيب.
+                نسأل الله أن يتقبل هذا العمل خالصاً لوجهه الكريم. تم تطويره كجهد مستمر لتسهيل الوصول إلى تراث الشيخ المحدث محمد ناصر الدين الألباني رحمه الله تعالى والبحث فيه، امتداداً للبرنامج القديم الذي لم يعد متوفراً في متجر جوجل بعد توقف تطويره منذ سنوات، مع المحافظة على نفس المصادر والتخريجات والكتب. نسأل الله العلي القدير أن يتقبل هذا العمل صدقة جارية، وأن يجعله علماً يُنتفع به. نسألكم الدعاء بظهر الغيب.
                   <br/>
                   <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block text-slate-900 dark:text-white">قام بتطويره: المهندس معاذ مأمون حموش</span>
                 </p>
                 <hr className="border-emerald-200 dark:border-slate-700" />
                 <p dir="ltr" className="font-sans text-left">
-                  This application is an ongoing charity (Sadaqah Jariyah), and we ask Allah to accept this work entirely for His Honorable sake. It was developed as a continuous effort to facilitate access to and search within the legacy of the Muhaddith, Sheikh Muhammad Nasir al-Din al-Albani, may Allah have mercy on him. We ask you to keep us in your prayers.
+                ​We ask Allah to accept this work purely for His Honorable sake. It was developed as a continuous effort to facilitate access to and search within the legacy of the Muhaddith, Sheikh Muhammad Nasir al-Din al-Albani, may Allah have mercy on him. This serves as an extension of the old application, which is no longer available on the Google Play Store after its development ceased years ago, while maintaining the exact same sources, references (Takhrijat), and books. We ask Allah the Almighty to accept this work as an ongoing charity (Sadaqah Jariyah) and as beneficial knowledge. We kindly ask you to keep us in your unseen prayers.
                   <br/>
                   <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-2 block text-slate-900 dark:text-white">Developed by: Eng. Moaz Mamoun Hammosh</span>
                 </p>
@@ -1714,6 +1718,13 @@ function MainApp() {
             {toastMessage}
           </div>
         )}
+
+        {/* --- Help Modal --- */}
+        <HelpModal 
+           isOpen={showHelpModal} 
+           onClose={() => setShowHelpModal(false)} 
+        />
+
       </div>
 
       {/* --- INVISIBLE PRINT ENGINE --- */}
