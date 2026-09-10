@@ -9,6 +9,12 @@ export default function IntroModal({ isOpen, onClose }) {
   // State to handle the text font size
   const [textFontSize, setTextFontSize] = useState(18);
 
+  // States & Ref for Desktop Grab-and-Drag (Hand tool)
+  const imageScrollRef = React.useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
+
   if (!isOpen) return null;
 
   // Placeholder name for your image - change "intro-photo.png" to your actual file path
@@ -135,11 +141,11 @@ export default function IntroModal({ isOpen, onClose }) {
             <p className="mb-12"></p>
             
             {/* Explicit dividing line with double spacing (margin top & bottom) */}
-            <hr className="my-24 border-slate-200 dark:border-slate-700" />
+            <hr className="my-12 border-slate-200 dark:border-slate-700" />
 
             {/* --- Document Image Section --- */}
             <div className="flex flex-col items-center">
-            <h3 className="text-3xl font-bold font-arabic mt-8 mb-8" style={{ color: '#03828F' }}>شعر</h3>
+            <h3 className="text-3xl font-bold font-arabic mt-6 mb-6" style={{ color: '#03828F' }}>شعر</h3>
               <div 
                 className="cursor-pointer overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-800 shadow-md hover:shadow-xl transition-all hover:border-emerald-500 dark:hover:border-emerald-500"
                 onClick={() => { setIsImageExpanded(true); setZoomLevel(1); }}
@@ -184,18 +190,43 @@ export default function IntroModal({ isOpen, onClose }) {
               </div>
             </div>
 
-            {/* Zoomable Image Container - Fixed for Mobile Responsiveness */}
-            <div className="flex-1 w-full h-full overflow-auto custom-scrollbar bg-slate-100/50 dark:bg-slate-900/50 p-4">
-              <div className="min-w-full min-h-full flex items-center justify-center">
+            {/* Zoomable Image Container with Drag-to-Pan Support */}
+            <div 
+              ref={imageScrollRef}
+              onMouseDown={(e) => {
+                if (zoomLevel > 1 && imageScrollRef.current) {
+                  setIsDragging(true);
+                  setDragStart({ x: e.clientX, y: e.clientY });
+                  setScrollStart({
+                    left: imageScrollRef.current.scrollLeft,
+                    top: imageScrollRef.current.scrollTop
+                  });
+                }
+              }}
+              onMouseMove={(e) => {
+                if (!isDragging || !imageScrollRef.current) return;
+                e.preventDefault();
+                const deltaX = e.clientX - dragStart.x;
+                const deltaY = e.clientY - dragStart.y;
+                imageScrollRef.current.scrollLeft = scrollStart.left - deltaX;
+                imageScrollRef.current.scrollTop = scrollStart.top - deltaY;
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => setIsDragging(false)}
+              className="flex-1 w-full h-full overflow-auto custom-scrollbar bg-slate-100/50 dark:bg-slate-900/50 p-4 select-none"
+              style={{ cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+            >
+              <div 
+                className="min-w-full min-h-full flex items-center justify-center pointer-events-none"
+                style={{ width: zoomLevel === 1 ? '100%' : `${zoomLevel * 100}%`, height: zoomLevel === 1 ? '100%' : 'auto' }}
+              >
                 <img 
                   src={imageSrc} 
                   alt="شعر مكبرة" 
-                  className="bg-white shadow-md rounded-lg transition-all duration-300 ease-out"
+                  className="bg-white shadow-md rounded-lg transition-all duration-200 ease-out object-contain pointer-events-auto"
                   style={{ 
-                    width: zoomLevel === 1 ? '100%' : `${zoomLevel * 100}%`,
-                    maxHeight: zoomLevel === 1 ? '100%' : 'none',
-                    objectFit: zoomLevel === 1 ? 'contain' : 'initial',
-                    cursor: zoomLevel > 1 ? 'grab' : 'zoom-in' 
+                    width: '100%',
+                    height: '100%'
                   }}
                   onClick={(e) => e.stopPropagation()} 
                 />
