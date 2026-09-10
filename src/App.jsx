@@ -324,6 +324,10 @@ function MainApp() {
   const [readingBook, setReadingBook] = useState(null);
   const [bookContent, setBookContent] = useState([]);
   const [readingIndex, setReadingIndex] = useState(0);
+  
+  // Page Jump State
+  const [isEditingPage, setIsEditingPage] = useState(false);
+  const [jumpPageInput, setJumpPageInput] = useState("");
 
   // Smart Scrolling States
   const scrollContainerRef = useRef(null);
@@ -439,40 +443,51 @@ function MainApp() {
     setShowPwaPrompt(false);
   };
 
-  // --- Hybrid Database Initialization ---
-  const initializeLibrary = async (jsonData = null) => {
+  // --- Hybrid Database Initialization (With Auto-Retry for Slow Internet) ---
+  const initializeLibrary = async () => {
     setIsLoading(true);
     try {
       const db = await openDatabase();
-      if (jsonData) {
-        setLoadingMessage('جاري استيراد ملف البيانات...');
-        await populateDatabase(db, jsonData);
-      } else {
-        const count = await getDbCount(db);
-        if (count === 0) {
-           try {
-             setLoadingMessage('جاري تحميل قاعدة البيانات لأول مرة (حوالي 30 ميجابايت)...');
-             const response = await fetch(`${window.location.origin}/jana_final_db.json`);
-             if (!response.ok) throw new Error("JSON not found");
-             const rawData = await response.json(); 
-             setLoadingMessage('جاري تخزين البيانات محلياً للعمل بدون إنترنت...');
-             await populateDatabase(db, rawData);
-           } catch (serverErr) {
-             setNeedsFileUpload(true);
-             setIsLoading(false);
-             return;
-           }
-        }
+      const count = await getDbCount(db);
+      
+      if (count === 0) {
+         let success = false;
+         let retryCount = 0;
+         const maxRetries = 5; // سيحاول 5 مرات قبل الاستسلام
+         
+         while (!success && retryCount < maxRetries) {
+             try {
+              if (retryCount === 0) {
+                setLoadingMessage('جاري تحميل قاعدة البيانات لأول مرة (حوالي 30 ميجابايت)...');
+             } else {
+                setLoadingMessage(`بطء في الاتصال، جاري إعادة المحاولة (${retryCount}/${maxRetries})...`);
+             }
+             
+             // Fix: Use a relative path to support subdirectory hosting environments
+             const response = await fetch('./jana_final_db.json');
+             if (!response.ok) throw new Error("JSON not found or network error");
+               
+               const rawData = await response.json(); 
+               setLoadingMessage('جاري تخزين البيانات محلياً للعمل بدون إنترنت...');
+               await populateDatabase(db, rawData);
+               success = true;
+             } catch (serverErr) {
+               retryCount++;
+               if (retryCount >= maxRetries) {
+                  throw new Error("Failed to download database after multiple attempts");
+               }
+               // الانتظار 3 ثوانٍ قبل المحاولة التالية
+               await new Promise(resolve => setTimeout(resolve, 3000));
+             }
+         }
       }
 
       setLoadingMessage('جاري رفع البيانات إلى الذاكرة العشوائية (RAM)...');
-      // Load all data into memory for instant useMemo search!
       const records = await getAllFromDB(db);
       setAllData(records);
-      setNeedsFileUpload(false);
     } catch (err) {
       console.error("Initialization failed:", err);
-      setError("fallback");
+      setError("fallback"); // سيؤدي هذا لتشغيل شاشة الخطأ الحمراء بدلاً من رفع الملف
     } finally {
       setIsLoading(false);
     }
@@ -483,19 +498,7 @@ function MainApp() {
     initializeLibrary();
   }, []);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const jsonData = JSON.parse(event.target.result);
-        await initializeLibrary(jsonData);
-        showToast('تم رفع قاعدة البيانات بنجاح!');
-      } catch (err) { alert('ملف JSON غير صالح.'); }
-    };
-    reader.readAsText(file);
-  };
+
 
   useEffect(() => {
     localStorage.setItem('jana_groups', JSON.stringify(savedGroups));
@@ -701,16 +704,27 @@ function MainApp() {
   const toggleStatus = (status) => setSelectedStatuses(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
   const toggleBook = (book) => setSelectedBooks(prev => prev.includes(book) ? prev.filter(b => b !== book) : [...prev, book]);
 
-  const copyToClipboardRaw = (text, id = 'modal') => {
-    const el = document.createElement('textarea');
-    el.value = text;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-    setCopyFeedback(id);
-    setTimeout(() => setCopyFeedback(null), 2000);
-    showToast('تم النسخ بنجاح');
+  const copyToClipboardRaw = async (text, id = 'modal') => {
+    try {
+      // Modern Clipboard API approach
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browser engines
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      setCopyFeedback(id);
+      setTimeout(() => setCopyFeedback(null), 2000);
+      showToast('تم النسخ بنجاح');
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      showToast('فشل النسخ، يرجى المحاولة مرة أخرى.');
+    }
   };
 
   const getCleanText = (item) => {
@@ -885,6 +899,7 @@ function MainApp() {
               <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
               <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
               <button onClick={() => setShowHelpModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">دليل الاستخدام</span></button>
+              <button onClick={() => setShowSettingsModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Settings size={20} /> <span className="font-arabic">إعدادات AI</span></button>
               <div className="w-px h-6 bg-white/20 mx-2"></div>
               <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
                 <button onClick={() => setFontSize(prev => Math.min(prev + 2, 40))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تكبير الخط"><ZoomIn size={18}/></button>
@@ -899,14 +914,7 @@ function MainApp() {
         </nav>
 
         <main className={`relative max-w-6xl mx-auto px-4 sm:px-6 py-8`} style={{ zIndex: 10 }}>
-          {needsFileUpload ? (
-            <div className="max-w-md mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-emerald-200 dark:border-emerald-800 font-arabic">
-              <div className="bg-emerald-50 dark:bg-emerald-900/40 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600"><Upload size={40} /></div>
-              <h2 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">وضع الاختبار (Canvas)</h2>
-              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm leading-relaxed">بما أن خادم الملفات غير متوفر حالياً، يرجى رفع ملف قاعدة البيانات <b className="text-emerald-600">jana_final_db.json</b> مرة واحدة لاختبار التطبيق:</p>
-              <label className="block w-full bg-emerald-700 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-lg cursor-pointer transition-colors shadow-md">اختر ملف الـ JSON<input type="file" accept=".json" onChange={handleFileUpload} className="hidden" /></label>
-            </div>
-          ) : error === "fallback" || allData.length === 0 ? (
+        {error === "fallback" || allData.length === 0 ? (
             <div className="max-w-lg mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800">
               <div className="bg-rose-50 dark:bg-rose-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><ShieldAlert size={40} className="text-rose-600" /></div>
               <h2 className="text-2xl font-bold mb-4 font-arabic text-slate-900 dark:text-white">تعذر الاتصال بالمكتبة</h2>
@@ -1233,15 +1241,56 @@ function MainApp() {
                   </div>
                   
                   <div className="bg-white dark:bg-slate-800/90 rounded-[2rem] shadow-lg border dark:border-slate-700 flex flex-col w-full overflow-hidden" style={{ height: '65vh', minHeight: '400px', maxHeight: '800px' }}>
-                    <div ref={scrollContainerRef} onScroll={checkScrollPosition} className="p-6 sm:p-10 overflow-y-auto flex-grow custom-scrollbar relative">
-                      <div className="absolute top-4 left-4 px-3 py-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg font-mono text-xs font-bold text-slate-500 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600">
-                        {readingIndex + 1} / {bookContent.length}
-                      </div>
+                  <div ref={scrollContainerRef} onScroll={checkScrollPosition} className="p-6 sm:p-10 overflow-y-auto flex-grow custom-scrollbar relative">
                       <div style={{ fontSize: `${fontSize}px`, marginTop: '10px' }} className="leading-loose font-arabic text-justify text-slate-900 dark:text-white" dangerouslySetInnerHTML={{ __html: formatText(bookContent[readingIndex].Description, '') }} />
                     </div>
                     <div className="p-4 sm:p-5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                      <button onClick={handleSmartNext} disabled={isAtBottom && readingIndex === bookContent.length - 1} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm"><ArrowRight size={20} /> التالي</button>
-                      <button onClick={() => setReadingIndex(p => Math.max(0, p - 1))} disabled={readingIndex === 0} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm">السابق <ArrowLeft size={20} /></button>
+                      <button onClick={handleSmartNext} disabled={isAtBottom && readingIndex === bookContent.length - 1} className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm shrink-0">
+                        <ArrowRight size={20} /> <span className="hidden sm:inline">التالي</span>
+                      </button>
+                      
+                      {/* Interactive Page Counter */}
+                      <div className="flex items-center justify-center font-mono text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300 mx-2">
+                        {isEditingPage ? (
+                           <div className="flex items-center gap-2" dir="ltr">
+                             <input 
+                               autoFocus
+                               type="number" 
+                               min="1" 
+                               max={bookContent.length}
+                               value={jumpPageInput}
+                               onChange={(e) => setJumpPageInput(e.target.value)}
+                               onBlur={() => {
+                                 const page = parseInt(jumpPageInput, 10);
+                                 if (page >= 1 && page <= bookContent.length) { setReadingIndex(page - 1); }
+                                 setIsEditingPage(false);
+                               }}
+                               onKeyDown={(e) => {
+                                 if (e.key === 'Enter') {
+                                   const page = parseInt(jumpPageInput, 10);
+                                   if (page >= 1 && page <= bookContent.length) { setReadingIndex(page - 1); }
+                                   setIsEditingPage(false);
+                                 }
+                               }}
+                               className="w-16 text-center px-1 py-1 border-2 border-emerald-500 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                             />
+                             <span>/ {bookContent.length}</span>
+                           </div>
+                        ) : (
+                           <div 
+                             onClick={() => { setJumpPageInput((readingIndex + 1).toString()); setIsEditingPage(true); }}
+                             className="cursor-pointer px-4 py-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-transparent hover:border-slate-300 dark:hover:border-slate-600 text-center whitespace-nowrap"
+                             title="انقر للانتقال لصفحة محددة"
+                             dir="ltr"
+                           >
+                             {readingIndex + 1} / {bookContent.length}
+                           </div>
+                        )}
+                      </div>
+
+                      <button onClick={() => setReadingIndex(p => Math.max(0, p - 1))} disabled={readingIndex === 0} className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-3 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition-colors font-bold shadow-sm shrink-0">
+                        <span className="hidden sm:inline">السابق</span> <ArrowLeft size={20} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1562,7 +1611,7 @@ function MainApp() {
                 <button onClick={() => setShowTermsModal(true)} className="p-4 border dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center gap-2 text-slate-600 dark:text-slate-300 font-bold text-sm transition-colors">
                   <FileText size={24} className="text-amber-500" /> الشروط والأحكام
                 </button>
-                <a href="mailto:Mhammosh@outlook.com" className="col-span-2 p-4 border dark:border-slate-600 rounded-xl hover:bg-emerald-50 dark:hover:bg-slate-700 flex flex-col items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm transition-colors">
+                <a href="mailto:eng.moaz@outlook.com" className="col-span-2 p-4 border dark:border-slate-600 rounded-xl hover:bg-emerald-50 dark:hover:bg-slate-700 flex flex-col items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm transition-colors">
                   <Mail size={24} /> تبليغ عن مشكلة (إيميل)
                 </a>
               </div>
