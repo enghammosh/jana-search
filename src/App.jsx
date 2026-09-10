@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings } from 'lucide-react';
 import HelpModal from './HelpModal';
+import IntroModal from './IntroModal';
 // ==========================================
 // --- Error Boundary to prevent White Screens ---
 // ==========================================
@@ -316,6 +317,7 @@ function MainApp() {
   const [viewMode, setViewMode] = useState('search'); 
   const [layoutMode, setLayoutMode] = useState('grid'); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showIntroModal, setShowIntroModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -383,6 +385,7 @@ function MainApp() {
       if (isDeepState) {
         window.history.pushState({ app: 'jana' }, ''); 
         if (state.isMobileMenuOpen) setIsMobileMenuOpen(false);
+        else if (state.showIntroModal) setShowIntroModal(false);
         else if (state.showHelpModal) setShowHelpModal(false);
         else if (state.showPrivacyModal) setShowPrivacyModal(false);
         else if (state.showTermsModal) setShowTermsModal(false);
@@ -895,6 +898,7 @@ function MainApp() {
             </div>
             
             <div className="hidden md:flex items-center gap-2">
+              <button onClick={() => setShowIntroModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">المقدمة</span></button>
               <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
               <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
               <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
@@ -1395,6 +1399,7 @@ function MainApp() {
                  <button onClick={() => { navigateTo('browse'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Library size={24} className="text-emerald-300" /> تصفح المكتبة</button>
                  <button onClick={() => { navigateTo('favorites'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><FolderHeart size={24} className="text-emerald-300" /> مجموعاتي المحفوظة</button>
                  <div className="w-full h-px bg-white/10 my-2"></div>
+                 <button onClick={() => { setShowIntroModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> مقدمة الجنى الداني</button>
                  <button onClick={() => { setShowSettingsModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Settings size={24} className="text-emerald-300" /> إعدادات الذكاء الاصطناعي</button>
                  <button onClick={() => { setShowAboutModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Info size={24} className="text-emerald-300" /> عن التطبيق والشروط</button>
                  <button onClick={() => { setShowHelpModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> دليل الاستخدام</button>
@@ -1772,7 +1777,13 @@ function MainApp() {
         <HelpModal 
            isOpen={showHelpModal} 
            onClose={() => setShowHelpModal(false)} 
-        />
+           />
+
+           {/* --- Introduction Modal --- */}
+           <IntroModal
+              isOpen={showIntroModal}
+              onClose={() => setShowIntroModal(false)}
+           />
 
       </div>
 
