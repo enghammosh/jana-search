@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings } from 'lucide-react';
 import HelpModal from './HelpModal';
+import IntroModal from './IntroModal';
 // ==========================================
 // --- Error Boundary to prevent White Screens ---
 // ==========================================
@@ -316,6 +317,7 @@ function MainApp() {
   const [viewMode, setViewMode] = useState('search'); 
   const [layoutMode, setLayoutMode] = useState('grid'); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showIntroModal, setShowIntroModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -379,6 +381,7 @@ function MainApp() {
       if (isDeepState) {
         window.history.pushState({ app: 'jana' }, ''); 
         if (state.isMobileMenuOpen) setIsMobileMenuOpen(false);
+        else if (state.showIntroModal) setShowIntroModal(false);
         else if (state.showHelpModal) setShowHelpModal(false);
         else if (state.showPrivacyModal) setShowPrivacyModal(false);
         else if (state.showTermsModal) setShowTermsModal(false);
@@ -439,40 +442,50 @@ function MainApp() {
     setShowPwaPrompt(false);
   };
 
-  // --- Hybrid Database Initialization ---
-  const initializeLibrary = async (jsonData = null) => {
+  // --- Hybrid Database Initialization (With Auto-Retry for Slow Internet) ---
+  const initializeLibrary = async () => {
     setIsLoading(true);
     try {
       const db = await openDatabase();
-      if (jsonData) {
-        setLoadingMessage('جاري استيراد ملف البيانات...');
-        await populateDatabase(db, jsonData);
-      } else {
-        const count = await getDbCount(db);
-        if (count === 0) {
-           try {
-             setLoadingMessage('جاري تحميل قاعدة البيانات لأول مرة (حوالي 30 ميجابايت)...');
-             const response = await fetch(`${window.location.origin}/jana_final_db.json`);
-             if (!response.ok) throw new Error("JSON not found");
-             const rawData = await response.json(); 
-             setLoadingMessage('جاري تخزين البيانات محلياً للعمل بدون إنترنت...');
-             await populateDatabase(db, rawData);
-           } catch (serverErr) {
-             setNeedsFileUpload(true);
-             setIsLoading(false);
-             return;
-           }
-        }
+      const count = await getDbCount(db);
+      
+      if (count === 0) {
+         let success = false;
+         let retryCount = 0;
+         const maxRetries = 5; // سيحاول 5 مرات قبل الاستسلام
+         
+         while (!success && retryCount < maxRetries) {
+             try {
+               if (retryCount === 0) {
+                  setLoadingMessage('جاري تحميل قاعدة البيانات لأول مرة (حوالي 30 ميجابايت)...');
+               } else {
+                  setLoadingMessage(`بطء في الاتصال، جاري إعادة المحاولة (${retryCount}/${maxRetries})...`);
+               }
+               
+               const response = await fetch(`${window.location.origin}/jana_final_db.json`);
+               if (!response.ok) throw new Error("JSON not found or network error");
+               
+               const rawData = await response.json(); 
+               setLoadingMessage('جاري تخزين البيانات محلياً للعمل بدون إنترنت...');
+               await populateDatabase(db, rawData);
+               success = true;
+             } catch (serverErr) {
+               retryCount++;
+               if (retryCount >= maxRetries) {
+                  throw new Error("Failed to download database after multiple attempts");
+               }
+               // الانتظار 3 ثوانٍ قبل المحاولة التالية
+               await new Promise(resolve => setTimeout(resolve, 3000));
+             }
+         }
       }
 
       setLoadingMessage('جاري رفع البيانات إلى الذاكرة العشوائية (RAM)...');
-      // Load all data into memory for instant useMemo search!
       const records = await getAllFromDB(db);
       setAllData(records);
-      setNeedsFileUpload(false);
     } catch (err) {
       console.error("Initialization failed:", err);
-      setError("fallback");
+      setError("fallback"); // سيؤدي هذا لتشغيل شاشة الخطأ الحمراء بدلاً من رفع الملف
     } finally {
       setIsLoading(false);
     }
@@ -483,19 +496,7 @@ function MainApp() {
     initializeLibrary();
   }, []);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const jsonData = JSON.parse(event.target.result);
-        await initializeLibrary(jsonData);
-        showToast('تم رفع قاعدة البيانات بنجاح!');
-      } catch (err) { alert('ملف JSON غير صالح.'); }
-    };
-    reader.readAsText(file);
-  };
+
 
   useEffect(() => {
     localStorage.setItem('jana_groups', JSON.stringify(savedGroups));
@@ -881,6 +882,7 @@ function MainApp() {
             </div>
             
             <div className="hidden md:flex items-center gap-2">
+              <button onClick={() => setShowIntroModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">المقدمة</span></button>
               <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
               <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
               <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
@@ -899,14 +901,7 @@ function MainApp() {
         </nav>
 
         <main className={`relative max-w-6xl mx-auto px-4 sm:px-6 py-8`} style={{ zIndex: 10 }}>
-          {needsFileUpload ? (
-            <div className="max-w-md mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-emerald-200 dark:border-emerald-800 font-arabic">
-              <div className="bg-emerald-50 dark:bg-emerald-900/40 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600"><Upload size={40} /></div>
-              <h2 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">وضع الاختبار (Canvas)</h2>
-              <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm leading-relaxed">بما أن خادم الملفات غير متوفر حالياً، يرجى رفع ملف قاعدة البيانات <b className="text-emerald-600">jana_final_db.json</b> مرة واحدة لاختبار التطبيق:</p>
-              <label className="block w-full bg-emerald-700 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-lg cursor-pointer transition-colors shadow-md">اختر ملف الـ JSON<input type="file" accept=".json" onChange={handleFileUpload} className="hidden" /></label>
-            </div>
-          ) : error === "fallback" || allData.length === 0 ? (
+        {error === "fallback" || allData.length === 0 ? (
             <div className="max-w-lg mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800">
               <div className="bg-rose-50 dark:bg-rose-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><ShieldAlert size={40} className="text-rose-600" /></div>
               <h2 className="text-2xl font-bold mb-4 font-arabic text-slate-900 dark:text-white">تعذر الاتصال بالمكتبة</h2>
@@ -1346,6 +1341,7 @@ function MainApp() {
                  <button onClick={() => { navigateTo('browse'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Library size={24} className="text-emerald-300" /> تصفح المكتبة</button>
                  <button onClick={() => { navigateTo('favorites'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><FolderHeart size={24} className="text-emerald-300" /> مجموعاتي المحفوظة</button>
                  <div className="w-full h-px bg-white/10 my-2"></div>
+                 <button onClick={() => { setShowIntroModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> مقدمة الجنى الداني</button>
                  <button onClick={() => { setShowSettingsModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Settings size={24} className="text-emerald-300" /> إعدادات الذكاء الاصطناعي</button>
                  <button onClick={() => { setShowAboutModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Info size={24} className="text-emerald-300" /> عن التطبيق والشروط</button>
                  <button onClick={() => { setShowHelpModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> دليل الاستخدام</button>
@@ -1723,7 +1719,13 @@ function MainApp() {
         <HelpModal 
            isOpen={showHelpModal} 
            onClose={() => setShowHelpModal(false)} 
-        />
+           />
+
+           {/* --- Introduction Modal --- */}
+           <IntroModal
+              isOpen={showIntroModal}
+              onClose={() => setShowIntroModal(false)}
+           />
 
       </div>
 
