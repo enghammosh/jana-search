@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
-import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings } from 'lucide-react';
+import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings, LayoutGrid } from 'lucide-react';
 import HelpModal from './HelpModal';
 import IntroModal from './IntroModal';
 // ==========================================
@@ -316,6 +316,8 @@ function MainApp() {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('search'); 
   const [layoutMode, setLayoutMode] = useState('grid'); 
+  const [splitScreenMode, setSplitScreenMode] = useState(false); // Controls the Outlook-style pane
+  const [showViewMenu, setShowViewMenu] = useState(false); // Controls the view dropdown
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -360,7 +362,8 @@ function MainApp() {
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
-  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+  const isIOS = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
 
   const uiStateRef = useRef({});
   const backPressCountRef = useRef(0);
@@ -416,28 +419,54 @@ function MainApp() {
 
   // --- PWA Install Prompt Logic ---
   useEffect(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    const promptDismissed = localStorage.getItem('pwa_prompt_dismissed');
-    if (isStandalone) return; 
+    const checkIsInstalled = () => {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || localStorage.getItem('app_installed') === 'true';
+    };
+
+    if (checkIsInstalled()) return;
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      if (!promptDismissed) setShowPwaPrompt(true);
+      setShowPwaPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    if (isIOS && !promptDismissed) { setTimeout(() => setShowPwaPrompt(true), 4000); }
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, [isIOS]);
+    
+    // Fallback for browsers that don't fire beforeinstallprompt (iOS Safari, iPadOS, Samsung Internet, Firefox Mobile)
+    const timer = setTimeout(() => {
+      if (!checkIsInstalled()) {
+        setShowPwaPrompt(true);
+      }
+    }, 1500);
+
+    const handleAppInstalled = () => {
+      localStorage.setItem('app_installed', 'true');
+      setShowPwaPrompt(false);
+      setShowIosGuideModal(false);
+      showToast('تم تثبيت التطبيق بنجاح!');
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      clearTimeout(timer);
+    };
+  }, []);
 
   const handleInstallPwa = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setShowPwaPrompt(false);
-    } else if (isIOS) {
-      showToast('في الآيفون: اضغط على أيقونة (المشاركة) بالأسفل ثم (إضافة للشاشة الرئيسية)');
+      if (outcome === 'accepted') {
+        localStorage.setItem('app_installed', 'true');
+        setShowPwaPrompt(false);
+      }
+    } else {
+      // Opens the persistent instruction modal for iPad, iOS, and Samsung/other browsers
+      setShowIosGuideModal(true);
     }
   };
 
@@ -545,6 +574,14 @@ function MainApp() {
   const handleFatwaMessageClick = (e) => {
     if (e.target.classList.contains('hadith-ref-link')) {
       const targetIdx = parseInt(e.target.getAttribute('data-target'), 10) - 1;
+      
+      // NEW LOGIC: Open in side pane if split screen is ON
+      if (splitScreenMode && aiFatwaResult && aiFatwaResult.hadiths[targetIdx]) {
+        setSelectedHadith(aiFatwaResult.hadiths[targetIdx]);
+        return;
+      }
+      
+      // OLD LOGIC: Scroll down if normal view
       const el = document.getElementById(`fatwa-hadith-${targetIdx}`);
       const scrollContainer = document.getElementById('main-scroll-container');
       
@@ -753,9 +790,27 @@ function MainApp() {
     }
   };
 
+  // --- Print Event Listeners (Fixes mobile async print issues) ---
+  useEffect(() => {
+    const handleAfterPrint = () => setPrintItems([]);
+    window.addEventListener('afterprint', handleAfterPrint);
+    
+    // iOS Safari Fallback: Safari sometimes requires a media query listener for print changes
+    const mediaQueryList = window.matchMedia('print');
+    const mqlListener = (mql) => { if (!mql.matches) setPrintItems([]); };
+    if (mediaQueryList.addListener) { mediaQueryList.addListener(mqlListener); }
+    
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+      if (mediaQueryList.removeListener) { mediaQueryList.removeListener(mqlListener); }
+    };
+  }, []);
+
   const handlePrintSpecific = (itemsToPrint) => {
     setPrintItems(itemsToPrint);
-    setTimeout(() => { window.print(); setPrintItems([]); }, 500); 
+    // Give React time to render the print DOM, then call print(). 
+    // The cleanup is now handled automatically by the event listeners above!
+    setTimeout(() => { window.print(); }, 500); 
   };
 
   // --- Group Logic ---
@@ -865,7 +920,7 @@ function MainApp() {
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
-      <div id="main-scroll-container" onScroll={handleMainScroll} className="print:hidden relative h-screen overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300" dir="rtl">
+      <div id="main-scroll-container" onScroll={handleMainScroll} className={`print:hidden relative h-screen w-full transition-colors duration-300 ${splitScreenMode ? 'flex flex-col overflow-hidden' : 'overflow-y-auto custom-scrollbar'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${printItems.length > 0 ? 'hidden' : ''}`} dir="rtl">
         
         {/* Multi-Selection Bottom Bar */}
         {isSelectionMode && (
@@ -882,7 +937,7 @@ function MainApp() {
         )}
 
         {/* --- Main Header Navigation --- */}
-        <nav className={`sticky top-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ zIndex: 30 }}>
+        <nav className={`shrink-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''} ${splitScreenMode ? 'relative' : 'sticky top-0'}`} style={{ zIndex: 50 }}>
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
               <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
@@ -909,6 +964,68 @@ function MainApp() {
                 <button onClick={() => setFontSize(prev => Math.min(prev + 2, 40))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تكبير الخط"><ZoomIn size={18}/></button>
                 <button onClick={() => setFontSize(prev => Math.max(prev - 2, 14))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تصغير الخط"><ZoomOut size={18}/></button>
               </div>
+              
+{/* --- Desktop View Mode & Split Screen Toggles --- */}
+<div className="hidden md:flex items-center gap-2 ml-2">
+                
+{/* 1. Dedicated Split Screen Button with Scroll Position Restoration */}
+<button 
+   onClick={() => {
+     const nextState = !splitScreenMode;
+     if (!nextState) {
+       // When toggling split screen OFF, clear selection and restore current scroll position smoothly
+       const currentScroll = scrollContainerRef.current ? scrollContainerRef.current.scrollTop : 0;
+       setSelectedHadith(null);
+       setSplitScreenMode(false);
+       setTimeout(() => {
+         if (scrollContainerRef.current) {
+           scrollContainerRef.current.scrollTop = currentScroll;
+         }
+       }, 50);
+     } else {
+       setSplitScreenMode(true);
+     }
+   }} 
+   className={`p-2.5 rounded-xl transition-all shadow-sm border flex items-center justify-center ${
+     splitScreenMode 
+       ? 'bg-emerald-500 text-white border-emerald-400' 
+       : 'bg-white/5 text-emerald-100 hover:bg-white/10 border-white/10 hover:text-white'
+   }`}
+   title={splitScreenMode ? 'إغلاق القراءة الجانبية' : 'القراءة الجانبية'}
+>
+  <BookOpen size={20} /> 
+</button>
+
+                {/* 2. View Mode Dropdown (Now uses LayoutGrid icon) */}
+                <div className="relative">
+                  <button onClick={() => setShowViewMenu(!showViewMenu)} className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-emerald-100 hover:text-white shadow-sm bg-white/5 border border-white/10" title="طريقة العرض">
+                    <LayoutGrid size={20} />
+                  </button>
+                  
+                  {showViewMenu && (
+                    <>
+                      <div className="fixed inset-0" style={{ zIndex: 90 }} onClick={() => setShowViewMenu(false)}></div>
+                      <div className="absolute top-full left-0 mt-3 w-max min-w-[240px] bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border border-slate-200 dark:border-slate-700 overflow-hidden text-slate-800 dark:text-slate-200 font-arabic animate-in fade-in slide-in-from-top-2" style={{ zIndex: 100 }}>
+                        <div className="p-2 space-y-1">
+                          <button onClick={() => { setLayoutMode('grid'); setShowViewMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${layoutMode === 'grid' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                             <div className="flex flex-wrap w-4 h-4 gap-0.5 shrink-0"><div className="w-[7px] h-[7px] bg-current rounded-sm"></div><div className="w-[7px] h-[7px] bg-current rounded-sm"></div><div className="w-[7px] h-[7px] bg-current rounded-sm"></div><div className="w-[7px] h-[7px] bg-current rounded-sm"></div></div> 
+                             شبكة بطاقات (عادي)
+                          </button>
+                          <button onClick={() => { setLayoutMode('list'); setShowViewMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${layoutMode === 'list' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                             <div className="flex flex-col w-4 h-4 gap-[2px] shrink-0"><div className="w-full h-[3px] bg-current rounded-[1px]"></div><div className="w-full h-[3px] bg-current rounded-[1px]"></div><div className="w-full h-[3px] bg-current rounded-[1px]"></div></div>
+                             قائمة موسعة (عريضة)
+                          </button>
+                          <button onClick={() => { setLayoutMode('compact'); setShowViewMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${layoutMode === 'compact' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                             <div className="flex flex-col w-4 h-4 gap-[1.5px] opacity-70 shrink-0"><div className="w-full h-[2px] bg-current rounded-[1px]"></div><div className="w-full h-[2px] bg-current rounded-[1px]"></div><div className="w-full h-[2px] bg-current rounded-[1px]"></div><div className="w-full h-[2px] bg-current rounded-[1px]"></div></div>
+                             قائمة مدمجة (للقراءة)
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-emerald-100 hover:text-white ml-2">
                 {isDarkMode ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} />}
               </button>
@@ -916,8 +1033,10 @@ function MainApp() {
             <div className="md:hidden flex items-center"><button onClick={() => setIsMobileMenuOpen(true)} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"><Menu size={26} /></button></div>
           </div>
         </nav>
-
-        <main className={`relative max-w-6xl mx-auto px-4 sm:px-6 py-8`} style={{ zIndex: 10 }}>
+        
+        <main className={`relative mx-auto px-4 sm:px-6 transition-colors duration-300 z-10 ${
+          splitScreenMode ? 'w-full max-w-[1800px] flex-1 flex flex-col min-h-0 overflow-hidden py-4' : 'max-w-6xl py-8'
+        }`} style={{ zIndex: 10 }}>
         {error === "fallback" || allData.length === 0 ? (
             <div className="max-w-lg mx-auto text-center bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800">
               <div className="bg-rose-50 dark:bg-rose-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><ShieldAlert size={40} className="text-rose-600" /></div>
@@ -926,11 +1045,15 @@ function MainApp() {
               <button onClick={() => window.location.reload()} className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg font-arabic hover:bg-emerald-600 transition-colors shadow-md">إعادة المحاولة</button>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className={splitScreenMode ? "flex-1 flex flex-col min-h-0 overflow-hidden gap-4" : "space-y-8"}>
               
               {/* --- Toolbar / Search Box --- */}
               {(viewMode === 'search' || (viewMode === 'favorites' && activeGroup)) && (
-                <div className="p-4 sm:p-6 rounded-[2rem] shadow-sm border bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 transition-all">
+                <div className={`shrink-0 p-4 sm:p-6 rounded-[2rem] border transition-all mx-auto w-full border-slate-200 dark:border-slate-700 ${
+                  splitScreenMode 
+                  ? 'shadow-sm bg-white dark:bg-slate-800' 
+                  : 'shadow-sm bg-white dark:bg-slate-800/80 max-w-6xl'
+                }`}>
                   
                   {/* AI Search Mode Tabs */}
                   {viewMode === 'search' && hasAiCapabilities && (
@@ -954,17 +1077,17 @@ function MainApp() {
                         placeholder={
                           searchMode === 'ai' ? "اكتب موضوعاً ليبحث عنه الذكاء الاصطناعي... (مثل: بر الوالدين)" :
                           searchMode === 'fatwa' ? "اسأل سؤالك الشرعي للبحث عن الفتوى مدعمة بالأحاديث (مثل: حكم تارك الصلاة)..." :
-                          "اكتب كلمة للبحث الفوري المباشر..."
+                          "اكتب كلمة من الحديث للبحث الفوري ..."
                         }
                         className={`w-full pr-5 pl-20 py-4 rounded-[1.5rem] border-2 outline-none transition-all font-arabic bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white dark:placeholder-slate-400
                           ${searchMode === 'ai' ? 'border-blue-200 dark:border-blue-900/50 focus:border-blue-500' : 
                             searchMode === 'fatwa' ? 'border-amber-200 dark:border-amber-900/50 focus:border-amber-500' : 
                             'border-slate-200 dark:border-slate-600 focus:border-emerald-500'}`}
-                        style={{ fontSize: '18px' }}
+                            style={{ fontSize: '18px' }}
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') executeSearch(); }}
-                      />
+                          />
                       {searchInput && (
                         <button onClick={() => {setSearchInput(''); setSearchTerm(''); setAiFatwaResult(null);}} className="absolute left-16 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-rose-500"><X size={18} /></button>
                       )}
@@ -1025,6 +1148,15 @@ function MainApp() {
                 </div>
               )}
 
+              {/* --- Welcome Message --- */}
+              {viewMode === 'search' && !searchInput && !isSearching && (
+                <div className="mt-10 mb-8 px-4 flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
+                  <p className="max-w-4xl mx-auto font-bold font-arabic leading-loose sm:leading-loose text-lg sm:text-xl lg:text-2xl text-emerald-800 dark:text-emerald-400">
+                    هذا البرنامج يقدم تخريجات الشيخ الألباني الدقيقة، وتحقيقاته العميقة، وأحكامه العلمية على الأحاديث النبوية؛ مستقاةً من كتبه المطبوعة، فيعرض البرنامج لمتن الحديث، ثم يذكر الحكم عليه، مع التوثيق والإحالة إلى مصادر هذه الأحكام في مظانها من كتب الشيخ، إضافةً إلى ذكر الأرقام الخاصة للأحاديث، وصفحاتها.
+                  </p>
+                </div>
+              )}
+
               {/* --- Global Loading Indicator for Search/AI --- */}
               {isSearching && (
                  <div className="col-span-full flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in">
@@ -1040,14 +1172,73 @@ function MainApp() {
 
               {/* --- AI Fatwa Result Card --- */}
               {searchMode === 'fatwa' && aiFatwaResult && !isSearching && (
-                 <div className="space-y-8 animate-in slide-in-from-bottom-8">
-                   <div className="bg-white dark:bg-slate-800 border-2 border-amber-300 dark:border-amber-700/50 rounded-[2rem] p-6 shadow-xl relative">
-                      <div className="absolute -top-6 -right-2 bg-gradient-to-l from-amber-500 to-amber-600 text-white px-6 py-2 rounded-2xl shadow-lg flex items-center gap-2 font-bold font-arabic text-sm">
+                <div className={`w-full pt-8 ${splitScreenMode ? 'flex-1 flex min-h-0 gap-4 overflow-hidden' : ''}`}>
+                  
+                  {/* RIGHT PANE: Reading Pane (Only visible in Split Screen) */}
+                  {splitScreenMode && (
+                    <div className="hidden md:flex flex-1 basis-0 min-w-0 h-full bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-700 flex-col overflow-hidden">
+                      {selectedHadith ? (
+                        <>
+                          <div className="px-4 py-4 border-b dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50 shrink-0">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {hasAiCapabilities && (
+                                <>
+                                  <button onClick={() => handleAiAction(selectedHadith, 'explain')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors">
+                                    <Sparkles size={16}/> <span className="font-arabic hidden xl:inline">شرح ذكي</span>
+                                  </button>
+                                  <button onClick={() => handleAiAction(selectedHadith, 'translate')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors">
+                                    <Languages size={16}/> <span className="font-arabic hidden xl:inline">ترجمة</span>
+                                  </button>
+                                  <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                                </>
+                              )}
+                              <button onClick={() => setShowSaveModal(selectedHadith)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                                {isHadithSaved(selectedHadith) ? (
+                                  <><BookmarkCheck size={16} className="text-emerald-600"/> <span className="font-arabic hidden xl:inline">محفوظ</span></>
+                                ) : (
+                                  <><BookmarkPlus size={16} className="text-emerald-700"/> <span className="font-arabic hidden xl:inline">حفظ</span></>
+                                )}
+                              </button>
+                              <button onClick={() => copyToClipboardRaw(getCleanText(selectedHadith), 'pane')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                                {copyFeedback === 'pane' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16} className="text-emerald-700"/>} <span className="font-arabic hidden xl:inline">نسخ</span>
+                              </button>
+                              <button onClick={() => handleShare(selectedHadith)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                                <Share2 size={16} className="text-blue-600"/> <span className="font-arabic hidden xl:inline">مشاركة</span>
+                              </button>
+                              <button onClick={() => handlePrintSpecific([selectedHadith])} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-700 dark:text-slate-300">
+                                <Printer size={16} />
+                              </button>
+                            </div>
+                            <button onClick={() => setSelectedHadith(null)} className="p-2 rounded-full text-slate-400 hover:text-rose-500 transition-colors self-start"><X size={20} /></button>
+                          </div>
+                          <div className="p-6 sm:p-8 overflow-y-auto flex-grow custom-scrollbar">
+                            <div className="mb-6 inline-flex items-center gap-2 font-bold text-sm font-arabic text-emerald-800 bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 px-3 py-1.5 rounded-lg border dark:border-emerald-800">
+                              <Bookmark size={16} /> <span>{formatBookName(selectedHadith.path || selectedHadith.Path)}</span>
+                            </div>
+                            <div style={{ fontSize: `${fontSize + 2}px` }} className="leading-loose font-arabic text-justify selection:bg-emerald-200 text-slate-900 dark:text-white" dangerouslySetInnerHTML={{ __html: formatText(selectedHadith.Description, searchTerm) }} />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-grow flex flex-col items-center justify-center text-slate-400 font-arabic p-8 text-center bg-slate-50/50 dark:bg-slate-900/20">
+                          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 border-2 border-slate-100 dark:border-slate-700 shadow-sm">
+                            <Bot size={36} className="text-emerald-300 dark:text-emerald-700" />
+                          </div>
+                          <p className="font-bold text-xl mb-2 text-slate-700 dark:text-slate-300">لوحة المراجع الذكية</p>
+                          <p className="text-sm max-w-xs leading-relaxed text-slate-500">انقر على رقم أي حديث في المناقشة لعرض نصه كاملاً هنا فوراً.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* LEFT PANE: Fatwa Chat Content */}
+                  <div className={`space-y-8 animate-in slide-in-from-bottom-8 ${splitScreenMode ? 'flex-1 basis-0 min-w-0 h-full overflow-y-auto custom-scrollbar pr-2 pb-8' : 'max-w-6xl mx-auto w-full'}`}>
+                  <div className="bg-white dark:bg-slate-800 border-2 border-amber-300 dark:border-amber-700/50 rounded-[2rem] p-6 shadow-xl relative shrink-0">
+                      <div className={`${splitScreenMode ? 'relative inline-flex mb-6' : 'absolute -top-6 -right-2'} bg-gradient-to-l from-amber-500 to-amber-600 text-white px-6 py-2 rounded-2xl shadow-lg flex items-center gap-2 font-bold font-arabic text-sm`}>
                          <Bot size={20} /> إجابة ومناقشة المساعد الذكي
                       </div>
                       
                       {/* Chat Messages List */}
-                      <div className="mt-8 space-y-8" onClick={handleFatwaMessageClick}>
+                      <div className={`${splitScreenMode ? 'mt-0' : 'mt-8'} space-y-8`} onClick={handleFatwaMessageClick}>
                         {aiFatwaResult.messages.map((msg, idx) => (
                           <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                              {msg.role === 'user' ? (
@@ -1147,59 +1338,178 @@ function MainApp() {
                      </div>
                    )}
                  </div>
+               </div>
               )}
 
-              {/* --- Regular / AI Results Grid --- */}
-              {(viewMode === 'search' || (viewMode === 'favorites' && activeGroup)) && !isSearching && searchMode !== 'fatwa' && (
-                <>
-                  <div className={layoutMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 gap-8'}>
-                    {filteredResults.map((item, idx) => {
-                      const isSelected = selectedItems.some(i => i.Description === item.Description);
-                      const isSaved = isHadithSaved(item);
-                      return (
-                        <div key={idx} onClick={() => isSelectionMode ? toggleSelection(item) : setSelectedHadith(item)}
-                          className={`group p-6 sm:p-8 rounded-[2rem] border-r-[8px] border-y border-l transition-all cursor-pointer hover:shadow-lg ${layoutMode === 'list' ? 'flex flex-col md:flex-row md:items-start gap-4' : 'flex flex-col'} ${
-                            isSelected ? 'bg-amber-50 border-amber-500 scale-[0.98]' : 'border-emerald-700 bg-white dark:bg-slate-800 hover:-translate-y-1'
-                          }`}
-                        >
-                          <div className={`flex justify-between items-center ${layoutMode === 'list' ? 'md:flex-col md:w-1/4 md:items-start md:border-l mb-0' : 'mb-6'}`}>
-                            <span className="bg-emerald-50 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-200 font-arabic">{formatBookName(item.path || item.Path)}</span>
-                            <div className={`flex items-center gap-2 ${layoutMode === 'list' ? 'md:mt-4' : ''}`}>
-                              {isSelectionMode ? (
-                                <div className={`p-2 rounded-full border-2 ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 text-transparent'}`}><Check size={18} /></div>
-                              ) : (
-                                <>
-                                  {hasAiCapabilities && (
-                                    <>
-                                      <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
-                                      <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                                    </>
-                                  )}
-                                  <button onClick={(e) => { e.stopPropagation(); setShowSaveModal(item); }} className={`p-2 rounded-full transition-colors ${isSaved ? 'text-emerald-600' : 'bg-slate-100 text-slate-400 hover:text-emerald-600'}`}><BookmarkPlus size={18} /></button>
-                                  <button onClick={(e) => { e.stopPropagation(); copyToClipboardRaw(getCleanText(item), idx); }} className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-emerald-600">{copyFeedback === idx ? <Check size={18} /> : <Copy size={18} />}</button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <div 
-                            style={{ fontSize: `${fontSize}px` }}
-                            className={`leading-loose font-arabic text-slate-800 dark:text-white ${layoutMode === 'list' ? 'md:w-3/4 line-clamp-3' : 'line-clamp-4 flex-grow'}`}
-                            dangerouslySetInnerHTML={{ __html: formatText(item.Description, searchTerm) }}
-                          />
-                        </div>
-                      );
-                    })}
-                    {(viewMode === 'search' && searchTerm && filteredResults.length === 0) && (
-                      <div className="col-span-full text-center py-24 text-slate-400 font-arabic">
-                         <Search size={80} className="mx-auto mb-6 opacity-20" />
-                         <p className="text-xl font-bold">لا توجد نتائج تطابق بحثك</p>
-                         {searchMode === 'ai' && <p className="text-sm mt-2 text-blue-500">جرب كتابة الموضوع بطريقة أخرى</p>}
-                      </div>
+{/* --- Regular / AI Results Grid & Outlook Pane --- */}
+{(viewMode === 'search' || (viewMode === 'favorites' && activeGroup)) && !isSearching && searchMode !== 'fatwa' && (
+      <div className={`w-full ${splitScreenMode ? 'flex-1 flex min-h-0 overflow-hidden' : ''}`}>
+        {splitScreenMode ? (
+          /* TRUE SEPARATE LAYOUT: Flex container filling exactly the remaining space */
+          <div className="w-full flex-1 flex min-h-0 gap-4 overflow-hidden">
+            
+            {/* RIGHT PANE (Appears First in RTL): Reading Pane, Fixed height, no scroll on wrapper */}
+            <div className="hidden md:flex flex-1 basis-0 min-w-0 h-full bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-700 flex-col overflow-hidden">
+          {selectedHadith ? (
+            <>
+              <div className="px-4 py-4 border-b dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50 shrink-0">
+                <div className="flex flex-wrap gap-2 items-center">
+                  {/* AI Buttons in Side Pane */}
+                  {hasAiCapabilities && (
+                    <>
+                      <button onClick={() => handleAiAction(selectedHadith, 'explain')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors">
+                        <Sparkles size={16}/> <span className="font-arabic hidden xl:inline">شرح ذكي</span>
+                      </button>
+                      <button onClick={() => handleAiAction(selectedHadith, 'translate')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors">
+                        <Languages size={16}/> <span className="font-arabic hidden xl:inline">ترجمة</span>
+                      </button>
+                      <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+                    </>
+                  )}
+
+                  <button onClick={() => setShowSaveModal(selectedHadith)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                    {isHadithSaved(selectedHadith) ? (
+                      <><BookmarkCheck size={16} className="text-emerald-600"/> <span className="font-arabic hidden xl:inline">محفوظ</span></>
+                    ) : (
+                      <><BookmarkPlus size={16} className="text-emerald-700"/> <span className="font-arabic hidden xl:inline">حفظ</span></>
+                    )}
+                  </button>
+                  <button onClick={() => copyToClipboardRaw(getCleanText(selectedHadith), 'pane')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                    {copyFeedback === 'pane' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16} className="text-emerald-700"/>} <span className="font-arabic hidden xl:inline">نسخ</span>
+                  </button>
+                  <button onClick={() => handleShare(selectedHadith)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-900 dark:text-white">
+                    <Share2 size={16} className="text-blue-600"/> <span className="font-arabic hidden xl:inline">مشاركة</span>
+                  </button>
+                  <button onClick={() => handlePrintSpecific([selectedHadith])} className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 shadow-sm hover:bg-slate-50 transition-colors text-slate-700 dark:text-slate-300">
+                    <Printer size={16} />
+                  </button>
+                </div>
+                <button onClick={() => setSelectedHadith(null)} className="p-2 rounded-full text-slate-400 hover:text-rose-500 transition-colors self-start"><X size={20} /></button>
+              </div>
+              <div className="p-6 sm:p-8 overflow-y-auto flex-grow custom-scrollbar">
+                <div className="mb-6 inline-flex items-center gap-2 font-bold text-sm font-arabic text-emerald-800 bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 px-3 py-1.5 rounded-lg border dark:border-emerald-800">
+                  <Bookmark size={16} /> <span>{formatBookName(selectedHadith.path || selectedHadith.Path)}</span>
+                </div>
+                <div style={{ fontSize: `${fontSize + 2}px` }} className="leading-loose font-arabic text-justify selection:bg-emerald-200 text-slate-900 dark:text-white" dangerouslySetInnerHTML={{ __html: formatText(selectedHadith.Description, searchTerm) }} />
+              </div>
+            </>
+          ) : (
+            <div className="flex-grow flex flex-col items-center justify-center text-slate-400 font-arabic p-8 text-center bg-slate-50/50 dark:bg-slate-900/20">
+              <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 border-2 border-slate-100 dark:border-slate-700 shadow-sm">
+                <BookOpen size={36} className="text-emerald-300 dark:text-emerald-700" />
+              </div>
+              <p className="font-bold text-xl mb-2 text-slate-700 dark:text-slate-300">لوحة القراءة السريعة</p>
+              <p className="text-sm max-w-xs leading-relaxed text-slate-500">انقر على أي حديث من القائمة لعرض نصه كاملاً هنا فوراً.</p>
+            </div>
+          )}
+          </div>
+  
+         {/* LEFT PANE: Results List, Scrolls independently */}
+       <div className={`flex-1 basis-0 min-w-0 h-full overflow-y-auto custom-scrollbar pr-2 pb-4 ${
+  layoutMode === 'grid'
+    ? 'grid grid-cols-1 gap-4 content-start'
+    : layoutMode === 'compact'
+      ? 'flex flex-col gap-2'
+      : 'flex flex-col gap-4'
+}`}>
+          {filteredResults.map((item, idx) => {
+            const isSelected = selectedItems.some(i => i.Description === item.Description);
+            const isSaved = isHadithSaved(item);
+            const isReadingPaneActive = selectedHadith?.Description === item.Description;
+            
+            return (
+              <div key={idx} onClick={() => isSelectionMode ? toggleSelection(item) : setSelectedHadith(item)}
+              className={`group border-r-[8px] border-y border-l transition cursor-pointer hover:shadow-md w-full shrink-0
+                ${isSelected ? 'bg-amber-50 border-amber-500 scale-[0.98]' : isReadingPaneActive ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 ring-2 ring-emerald-400/50' : 'border-emerald-700 bg-white dark:bg-slate-800 hover:-translate-y-0.5'}
+                ${layoutMode === 'compact' ? 'p-3.5 sm:p-4 rounded-xl flex flex-col gap-1.5' : layoutMode === 'list' ? 'p-5 sm:p-6 rounded-[2rem] flex flex-col md:flex-row md:items-start gap-4' : 'p-5 sm:p-6 rounded-[2rem] flex flex-col gap-3'}
+                `}
+              >
+                <div className={`flex justify-between items-center shrink-0 w-full ${layoutMode === 'list' ? 'md:flex-col md:w-1/4 md:items-start md:border-l mb-0' : 'mb-2'}`}>
+                  <span className={`bg-emerald-50 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold px-3 py-1 rounded-lg border border-emerald-200 font-arabic ${layoutMode === 'compact' ? 'text-[11px]' : 'text-xs'}`}>{formatBookName(item.path || item.Path)}</span>
+                  <div className={`flex items-center gap-1.5 ${layoutMode === 'list' ? 'md:mt-4' : ''}`}>
+                    {isSelectionMode ? (
+                      <div className={`p-2 rounded-full border-2 ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 text-transparent'}`}><Check size={16} /></div>
+                    ) : (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); setShowSaveModal(item); }} className={`p-2 rounded-full transition-colors ${isSaved ? 'text-emerald-600' : 'bg-slate-100 text-slate-400 hover:text-emerald-600'}`}><BookmarkPlus size={16} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); copyToClipboardRaw(getCleanText(item), idx); }} className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-emerald-600">{copyFeedback === idx ? <Check size={16} /> : <Copy size={16} />}</button>
+                      </>
                     )}
                   </div>
-                </>
-              )}
+                </div>
+                <div 
+                  style={{ fontSize: `${layoutMode === 'compact' ? Math.max(13, fontSize - 4) : Math.max(14, fontSize - 2)}px` }}
+                  className={`leading-loose font-arabic text-slate-800 dark:text-white ${layoutMode === 'compact' ? 'line-clamp-2' : layoutMode === 'list' ? 'md:w-3/4 line-clamp-3' : 'line-clamp-3'}`}
+                  dangerouslySetInnerHTML={{ __html: formatText(item.Description, searchTerm) }}
+                />
+              </div>
+            );
+          })}
+          {filteredResults.length === 0 && (
+            <div className="text-center py-24 text-slate-400 font-arabic">
+               <Search size={80} className="mx-auto mb-6 opacity-20" />
+               <p className="text-xl font-bold">لا توجد نتائج تطابق بحثك</p>
+            </div>
+          )}
+        </div>
+
+      </div>
+    ) : (
+     /* Standard Full View Layout (When split screen is toggled off) */
+     <div className={`w-full pb-8 ${layoutMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 content-start' : layoutMode === 'compact' ? 'flex flex-col gap-3' : 'flex flex-col gap-4'}`}>
+     {filteredResults.map((item, idx) => {
+          const isSelected = selectedItems.some(i => i.Description === item.Description);
+          const isSaved = isHadithSaved(item);
+          
+          return (
+            <div key={idx} onClick={() => { if (selectedHadith) setSelectedHadith(null); if (isSelectionMode) toggleSelection(item); else setSelectedHadith(item); }}
+            className={`group border-r-[8px] border-y border-l transition cursor-pointer hover:shadow-lg w-full
+              ${isSelected ? 'bg-amber-50 border-amber-500 scale-[0.98]' : 'border-emerald-700 bg-white dark:bg-slate-800 hover:-translate-y-1'}
+              ${layoutMode === 'compact' ? 'p-4 sm:p-5 rounded-2xl flex flex-col gap-2' : layoutMode === 'list' ? 'p-6 sm:p-8 rounded-[2rem] flex flex-col md:flex-row md:items-start gap-4' : 'p-6 sm:p-8 rounded-[2rem] flex flex-col gap-4'}
+              `}
+            >
+              <div className={`flex justify-between items-center shrink-0 w-full ${layoutMode === 'list' ? 'md:flex-col md:w-1/4 md:items-start md:border-l mb-0' : layoutMode === 'compact' ? 'mb-1' : 'mb-2'}`}>
+                <span className={`bg-emerald-50 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold px-3 py-1.5 rounded-lg border border-emerald-200 font-arabic ${layoutMode === 'compact' ? 'text-[11px]' : 'text-xs'}`}>{formatBookName(item.path || item.Path)}</span>
+                
+                <div className={`flex items-center gap-2 ${layoutMode === 'list' ? 'md:mt-4' : ''}`}>
+                  {isSelectionMode ? (
+                    <div className={`p-2 rounded-full border-2 ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 text-transparent'}`}><Check size={18} /></div>
+                  ) : (
+                    <>
+                      {hasAiCapabilities && layoutMode !== 'compact' && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'explain'); }} className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors shadow-sm border border-blue-100 dark:border-blue-800" title="شرح الذكاء الاصطناعي"><Sparkles size={18} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAiAction(item, 'translate'); }} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100 dark:border-indigo-800" title="الترجمة للإنجليزية"><Languages size={18} /></button>
+                          <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                        </>
+                      )}
+                      {layoutMode !== 'compact' && (
+                         <button onClick={(e) => { e.stopPropagation(); setShowSaveModal(item); }} className={`p-2 rounded-full transition-colors ${isSaved ? 'text-emerald-600' : 'bg-slate-100 text-slate-400 hover:text-emerald-600'}`}><BookmarkPlus size={18} /></button>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); copyToClipboardRaw(getCleanText(item), idx); }} className={`p-2 rounded-full ${layoutMode === 'compact' ? 'bg-slate-50 dark:bg-slate-900' : 'bg-slate-100'} text-slate-400 hover:text-emerald-600`}>{copyFeedback === idx ? <Check size={18} /> : <Copy size={18} />}</button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div 
+                style={{ fontSize: `${layoutMode === 'compact' ? Math.max(14, fontSize - 4) : fontSize}px` }}
+                className={`leading-loose font-arabic text-slate-800 dark:text-white flex-grow w-full ${layoutMode === 'compact' ? 'line-clamp-2' : layoutMode === 'list' ? 'md:w-3/4 line-clamp-3' : 'line-clamp-4'}`}
+                dangerouslySetInnerHTML={{ __html: formatText(item.Description, searchTerm) }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    )}
+
+    {(viewMode === 'search' && searchTerm && filteredResults.length === 0 && !splitScreenMode) && (
+      <div className="col-span-full text-center py-24 text-slate-400 font-arabic">
+         <Search size={80} className="mx-auto mb-6 opacity-20" />
+         <p className="text-xl font-bold">لا توجد نتائج تطابق بحثك</p>
+      </div>
+    )}
+  </div>
+)}
 
               {/* --- Library Browse View --- */}
               {viewMode === 'browse' && (
@@ -1539,7 +1849,7 @@ function MainApp() {
 
         {/* --- Selected Hadith Modal --- */}
         {selectedHadith && !isSelectionMode && (viewMode === 'search' || viewMode === 'favorites') && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6" style={{ zIndex: 200 }}>
+          <div className={`fixed inset-0 flex items-center justify-center p-4 sm:p-6 ${splitScreenMode ? 'md:hidden' : ''}`} style={{ zIndex: 200 }}>
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedHadith(null)}></div>
             <div className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col bg-white dark:bg-slate-800 border border-emerald-100 dark:border-slate-700 animate-in zoom-in-95">
               <div className="px-6 py-4 border-b dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
@@ -1593,7 +1903,7 @@ function MainApp() {
             <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 text-center animate-in zoom-in-95 overflow-y-auto max-h-[85vh] custom-scrollbar">
               <Library size={60} className="mx-auto text-emerald-600 mb-4 gold-edge" />
               <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">الجنى الداني من دوحة الألباني</h2>
-              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.9</p>
+              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.9.15</p>
               
               <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-8 bg-emerald-50 dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-700 space-y-4 text-justify">
                 <p>
@@ -1773,6 +2083,45 @@ function MainApp() {
           </div>
         )}
 
+        {/* --- iOS / Manual Install Guide Modal (Persistent) --- */}
+        {showIosGuideModal && (
+          <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 600 }}>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm animate-in fade-in" onClick={() => setShowIosGuideModal(false)}></div>
+            <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border-2 border-emerald-500 animate-in zoom-in-95 text-slate-900 dark:text-white">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-100 dark:bg-emerald-900/50 p-3 rounded-2xl text-emerald-700 dark:text-emerald-300">
+                    <Smartphone size={28} />
+                  </div>
+                  <h3 className="text-2xl font-bold">طريقة تثبيت التطبيق على جهازك</h3>
+                </div>
+                <button onClick={() => setShowIosGuideModal(false)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-slate-700 dark:text-slate-300 text-base leading-relaxed mb-8 bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <p className="font-bold text-emerald-700 dark:text-emerald-400">اتبع الخطوات البسيطة التالية حسب متصفحك:</p>
+                <ol className="list-decimal list-inside space-y-3 pr-2">
+                  <li><b>في أجهزة آيفون وآيباد (Safari / iPadOS):</b> اضغط على زر <b>المشاركة (Share)</b> <Share2 size={16} className="inline mx-1 text-blue-500" /> في شريط المتصفح.</li>
+                  <li>قم بالتمرير للأسفل في القائمة وابحث عن خيار <b>"إضافة إلى الشاشة الرئيسية" (Add to Home Screen)</b>.</li>
+                  <li>اضغط عليها ثم اضغط على <b>"إضافة" (Add)</b> في الأعلى ليظهر التطبيق كأيقونة مستقلة تعمل بدون إنترنت ولا يظهر لك التنبيه مجدداً.</li>
+                  <li><b>في متصفحات أندرويد الأخرى (مثل Samsung Internet):</b> اضغط على قائمة المتصفح (الخطوط الثلاثة) ثم اختر <b>"إضافة الصفحة إلى" &gt; "الشاشة الرئيسية"</b>.</li>
+                </ol>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => { localStorage.setItem('app_installed', 'true'); setShowIosGuideModal(false); setShowPwaPrompt(false); showToast('تم حفظ الحالة، لن يظهر التنبيه مجدداً'); }} className="flex-1 py-3.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-xl font-bold transition-colors">
+                  تم التثبيت مسبقاً
+                </button>
+                <button onClick={() => setShowIosGuideModal(false)} className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-md">
+                  فهمت، إغلاق النافذة
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- Help Modal --- */}
         <HelpModal 
            isOpen={showHelpModal} 
@@ -1787,9 +2136,9 @@ function MainApp() {
 
       </div>
 
-      {/* --- INVISIBLE PRINT ENGINE --- */}
+      {/* --- PRINT ENGINE (Made visible during print prep for mobile compatibility) --- */}
       {printItems.length > 0 && (
-         <div className="hidden print:block text-black bg-white min-h-screen p-8" dir="rtl">
+         <div className="block text-black bg-white min-h-screen p-4 sm:p-8 w-full" dir="rtl">
             <div className="text-center mb-10 border-b-2 border-black pb-4">
                <h1 className="text-4xl font-bold font-arabic mb-3">الجنى الداني</h1>
                <h2 className="text-3xl font-arabic">من دوحة الألباني</h2>
