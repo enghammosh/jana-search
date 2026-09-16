@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
-import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings, LayoutGrid } from 'lucide-react';
+import { Search, Book, BookOpen, Copy, Check, Moon, Sun, ChevronRight, X, Filter, FolderOpen, Bookmark, ShieldCheck, ArrowRight, ArrowLeft, BookmarkPlus, BookmarkCheck, Printer, FolderHeart, CheckSquare, CheckCircle2, Menu, Library, Share2, ZoomIn, ZoomOut, Info, Mail, FileText, ShieldAlert, ListChecks, Trash2, Edit2, Smartphone, Sparkles, Languages, MessageCircleQuestion, Bot, Upload, Settings, LayoutGrid, Megaphone } from 'lucide-react';
 import HelpModal from './HelpModal';
 import IntroModal from './IntroModal';
+import { APP_VERSION, WHATS_NEW_DATA } from './changelog';
 // ==========================================
 // --- Error Boundary to prevent White Screens ---
 // ==========================================
@@ -255,6 +256,11 @@ function MainApp() {
   const [error, setError] = useState(null);
   const [needsFileUpload, setNeedsFileUpload] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  
+  // What's New
+  const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
+  const [hasUnreadUpdates, setHasUnreadUpdates] = useState(false);
 
   // Storage & AI Configuration States
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('jana_gemini_api_key') || '');
@@ -888,6 +894,24 @@ function MainApp() {
     }
   }, [readingIndex, viewMode, fontSize, bookContent]);
 
+  //What's New useEffect
+  useEffect(() => {
+    const lastSeen = localStorage.getItem('jana_last_seen_version');
+    
+    if (lastSeen !== APP_VERSION) {
+      setHasUnreadUpdates(true);
+      
+      // If they have a history, show the toast after 3 seconds
+      if (lastSeen) {
+        const timer = setTimeout(() => setShowUpdateToast(true), 3000);
+        return () => clearTimeout(timer);
+      } else {
+        // If they are brand new, silently save the current version
+        localStorage.setItem('jana_last_seen_version', APP_VERSION);
+      }
+    }
+  }, []);
+
   const handleSmartNext = () => {
     if (!scrollContainerRef.current) return;
     if (isAtBottom) { if (readingIndex < bookContent.length - 1) setReadingIndex(p => p + 1);
@@ -937,8 +961,23 @@ function MainApp() {
         )}
 
         {/* --- Main Header Navigation --- */}
-        <nav className={`shrink-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''} ${splitScreenMode ? 'relative' : 'sticky top-0'}`} style={{ zIndex: 50 }}>
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <nav className={`sticky top-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ zIndex: 40 }}>
+          
+          {/* --- NEW WHATS NEW BUTTON (Fixed exactly to the viewport edge) --- */}
+          <div className="hidden md:flex fixed left-4 xl:left-6 top-[14px] z-[100]">
+             <button onClick={() => setShowWhatsNewModal(true)} className="relative px-3 py-2 rounded-xl transition-all font-bold text-sm flex items-center gap-2 bg-emerald-900/90 dark:bg-slate-800/90 border border-emerald-500/30 dark:border-slate-600 shadow-xl text-emerald-100 hover:text-white hover:bg-emerald-700 dark:hover:bg-slate-700 backdrop-blur-md">
+                <Megaphone size={18} /> <span className="font-arabic">ما الجديد؟</span>
+                {hasUnreadUpdates && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 shadow-sm"></span>
+                  </span>
+                )}
+             </button>
+          </div>
+
+          {/* Notice the md:pl-[140px] added here. This creates the empty space so the Moon icon doesn't crash into the button! */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 md:pl-[140px] py-3 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
               <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
                 <Library size={28} className="text-white" />
@@ -1695,6 +1734,98 @@ function MainApp() {
       {/* ========================================================================= */}
       <div className={printItems.length > 0 ? 'hidden' : 'block'}>
         
+        {/* --- What's New Slide-in Toast --- */}
+        {showUpdateToast && (
+          <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-8 fade-in duration-500 font-arabic">
+            <div className="bg-white dark:bg-slate-800 border-2 border-emerald-500 rounded-2xl p-4 shadow-2xl flex items-center gap-4 max-w-sm">
+              <div className="bg-emerald-100 dark:bg-emerald-900/50 p-2 rounded-xl text-emerald-600">
+                <Megaphone size={24} className="animate-bounce" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 dark:text-white text-sm">اكتشف الميزات الجديدة!</p>
+                <p className="text-slate-500 text-xs mt-1">لقد أضفنا خصائص لتسهيل تجربتك.</p>
+              </div>
+              <div className="flex flex-col gap-2 shrink-0 border-r border-slate-200 dark:border-slate-700 pr-3">
+                <button 
+                  onClick={() => { setShowUpdateToast(false); setShowWhatsNewModal(true); }} 
+                  className="text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors">
+                  التفاصيل
+                </button>
+                <button 
+                  onClick={() => { 
+                    setShowUpdateToast(false); 
+                    localStorage.setItem('jana_last_seen_version', APP_VERSION); 
+                    setHasUnreadUpdates(false); 
+                  }} 
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  تجاهل
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- What's New Full Modal --- */}
+        {showWhatsNewModal && (
+          <div className="fixed inset-0 flex items-center justify-center p-4 font-arabic" style={{ zIndex: 600 }}>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm animate-in fade-in" onClick={() => { setShowWhatsNewModal(false); localStorage.setItem('jana_last_seen_version', APP_VERSION); setHasUnreadUpdates(false); }}></div>
+            <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-6 sm:p-8 shadow-2xl border border-emerald-200 dark:border-slate-700 animate-in zoom-in-95 flex flex-col max-h-[85vh]">
+              
+              <div className="flex justify-between items-center mb-6 shrink-0">
+                 <h2 className="text-2xl font-bold flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
+                   <Megaphone size={28} className="text-amber-500" /> ما الجديد في التحديث؟
+                 </h2>
+                 <button onClick={() => { setShowWhatsNewModal(false); localStorage.setItem('jana_last_seen_version', APP_VERSION); setHasUnreadUpdates(false); }} className="text-slate-400 hover:text-rose-500 transition-colors"><X size={24}/></button>
+              </div>
+
+              <div className="overflow-y-auto custom-scrollbar pr-2 flex-grow space-y-8">
+                {WHATS_NEW_DATA.map((release, index) => (
+                  <div key={release.version} className={`relative ${index !== 0 ? 'opacity-70' : ''}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 font-bold px-3 py-1 rounded-lg border border-emerald-200">
+                        الإصدار {release.version}
+                      </span>
+                      <span className="text-sm text-slate-400">{release.date}</span>
+                    </div>
+
+                    {release.features && release.features.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2 text-sm">الميزات الجديدة:</h3>
+                        <ul className="list-disc list-inside space-y-1.5 text-slate-600 dark:text-slate-300 text-sm leading-relaxed pr-2">
+                          {release.features.map((feat, i) => <li key={i}>{feat}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {release.fixes && release.fixes.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2 text-sm">التحسينات والإصلاحات:</h3>
+                        <ul className="list-disc list-inside space-y-1.5 text-slate-600 dark:text-slate-300 text-sm leading-relaxed pr-2">
+                          {release.fixes.map((fix, i) => <li key={i}>{fix}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {release.pdfLink && (
+                      <a href={release.pdfLink} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl font-bold hover:bg-emerald-100 transition-colors text-sm">
+                        عرض العرض التقديمي للتحديث (PDF)
+                      </a>
+                    )}
+                    
+                    {index < WHATS_NEW_DATA.length - 1 && <hr className="mt-8 border-slate-100 dark:border-slate-700" />}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
+                <button onClick={() => { setShowWhatsNewModal(false); localStorage.setItem('jana_last_seen_version', APP_VERSION); setHasUnreadUpdates(false); }} className="w-full py-3 sm:py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-sm text-lg">
+                  متابعة للتطبيق
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- Elegant Side Drawer (Sidebar) for Mobile Menu --- */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 md:hidden" style={{ zIndex: 100 }}>
@@ -1710,6 +1841,17 @@ function MainApp() {
                  <button onClick={() => { navigateTo('favorites'); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><FolderHeart size={24} className="text-emerald-300" /> مجموعاتي المحفوظة</button>
                  <div className="w-full h-px bg-white/10 my-2"></div>
                  <button onClick={() => { setShowIntroModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> مقدمة الجنى الداني</button>
+                 {/* --- NEW MOBILE WHATS NEW BUTTON --- */}
+                 <button onClick={() => { setShowWhatsNewModal(true); setIsMobileMenuOpen(false); }} className="relative flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors">
+                   <Megaphone size={24} className="text-emerald-300" /> 
+                   <span>ما الجديد في التحديث؟</span>
+                   {hasUnreadUpdates && (
+                     <span className="absolute top-1/2 -translate-y-1/2 left-4 flex h-3 w-3">
+                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                       <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                     </span>
+                   )}
+                 </button>
                  <button onClick={() => { setShowSettingsModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Settings size={24} className="text-emerald-300" /> إعدادات الذكاء الاصطناعي</button>
                  <button onClick={() => { setShowAboutModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><Info size={24} className="text-emerald-300" /> عن التطبيق والشروط</button>
                  <button onClick={() => { setShowHelpModal(true); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-arabic font-bold text-lg transition-colors"><BookOpen size={24} className="text-emerald-300" /> دليل الاستخدام</button>
@@ -1903,7 +2045,7 @@ function MainApp() {
             <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-2xl border border-emerald-100 dark:border-slate-700 text-center animate-in zoom-in-95 overflow-y-auto max-h-[85vh] custom-scrollbar">
               <Library size={60} className="mx-auto text-emerald-600 mb-4 gold-edge" />
               <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">الجنى الداني من دوحة الألباني</h2>
-              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار 2026.9.15</p>
+              <p className="text-slate-500 mb-6 text-sm font-mono">الإصدار {APP_VERSION}</p>
               
               <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-8 bg-emerald-50 dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-700 space-y-4 text-justify">
                 <p>
