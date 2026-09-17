@@ -976,7 +976,7 @@ function MainApp() {
              </button>
           </div>
 
-          {/* Notice the md:pl-[90x] added here. This creates the empty space so the Moon icon doesn't crash into the button! */}
+          {/* Notice the md:pl-[110px] added here. This creates the empty space so the Moon icon doesn't crash into the button! */}
           <div className="max-w-6xl mx-auto px-4 sm:px-6 md:pl-[90px] py-3 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
               <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
