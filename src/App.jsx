@@ -961,49 +961,55 @@ function MainApp() {
         )}
 
         {/* --- Main Header Navigation --- */}
-        <nav className={`sticky top-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ zIndex: 40 }}>
-          
-          {/* --- NEW WHATS NEW BUTTON (Fixed exactly to the viewport edge) --- */}
-          <div className="hidden md:flex fixed left-4 xl:left-6 top-[14px] z-[100]">
-             <button onClick={() => setShowWhatsNewModal(true)} className="relative px-3 py-2 rounded-xl transition-all font-bold text-sm flex items-center gap-2 bg-emerald-900/90 dark:bg-slate-800/90 border border-emerald-500/30 dark:border-slate-600 shadow-xl text-emerald-100 hover:text-white hover:bg-emerald-700 dark:hover:bg-slate-700 backdrop-blur-md">
-                <Megaphone size={18} /> <span className="font-arabic">ما الجديد؟</span>
-                {hasUnreadUpdates && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 shadow-sm"></span>
-                  </span>
-                )}
-             </button>
-          </div>
+<nav className={`sticky top-0 border-b backdrop-blur-xl bg-emerald-800 dark:bg-slate-900 border-emerald-900 dark:border-slate-800 shadow-lg text-white transition-all ${isSelectionMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ zIndex: 40 }}>
+  
+  {/* --- NEW WHATS NEW BUTTON (Fixed exactly to the viewport edge) --- */}
+  <div className="hidden md:flex fixed left-4 xl:left-6 top-[14px] z-[100]">
+     <button onClick={() => setShowWhatsNewModal(true)} className="relative px-3 py-2 rounded-xl transition-all font-bold text-sm flex items-center gap-2 bg-emerald-900/90 dark:bg-slate-800/90 border border-emerald-500/30 dark:border-slate-600 shadow-xl text-emerald-100 hover:text-white hover:bg-emerald-700 dark:hover:bg-slate-700 backdrop-blur-md">
+        <Megaphone size={18} /> <span className="font-arabic">ما الجديد؟</span>
+        {hasUnreadUpdates && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 shadow-sm"></span>
+          </span>
+        )}
+     </button>
+  </div>
 
-          {/* Notice the md:pl-[110px] added here. This creates the empty space so the Moon icon doesn't crash into the button! */}
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 md:pl-[90px] py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
-              <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
-                <Library size={28} className="text-white" />
-                {hasAiCapabilities && <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5"><Sparkles size={10} className="text-white"/></div>}
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold font-arabic leading-none tracking-tight gold-text-shadow text-white">الجنى الداني</h1>
-                <p className="text-sm font-bold uppercase mt-1.5 text-emerald-100 gold-text-shadow font-arabic flex items-center gap-1">
-                  من دوحة الألباني {hasAiCapabilities && <span className="text-xs bg-emerald-900/50 px-1 rounded border border-emerald-700">AI</span>}
-                </p>
-              </div>
-            </div>
-            
-            <div className="hidden md:flex items-center gap-2">
-              <button onClick={() => setShowIntroModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">المقدمة</span></button>
-              <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
-              <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
-              <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
-              <button onClick={() => setShowHelpModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">دليل الاستخدام</span></button>
-              <button onClick={() => setShowSettingsModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Settings size={20} /> <span className="font-arabic">إعدادات AI</span></button>
-              <div className="w-px h-6 bg-white/20 mx-2"></div>
-              <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
-                <button onClick={() => setFontSize(prev => Math.min(prev + 2, 40))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تكبير الخط"><ZoomIn size={18}/></button>
-                <button onClick={() => setFontSize(prev => Math.max(prev - 2, 14))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تصغير الخط"><ZoomOut size={18}/></button>
-              </div>
-              
+  {/* FIXED: Changed justify-between to justify-center and removed md:pl-[140px] */}
+  <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-center gap-8 md:gap-12">
+    
+    {/* FIXED: Added flex-shrink-0 to the logo container */}
+    <div className="flex items-center gap-3 cursor-pointer flex-shrink-0" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
+      <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
+        <Library size={28} className="text-white" />
+        {hasAiCapabilities && <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5"><Sparkles size={10} className="text-white"/></div>}
+      </div>
+      <div>
+        {/* FIXED: Added whitespace-nowrap to keep words on one line */}
+        <h1 className="text-2xl sm:text-3xl font-bold font-arabic leading-none tracking-tight gold-text-shadow text-white whitespace-nowrap">
+          الجنى الداني
+        </h1>
+        <p className="text-sm font-bold uppercase mt-1.5 text-emerald-100 gold-text-shadow font-arabic flex items-center gap-1 whitespace-nowrap">
+          من دوحة الألباني {hasAiCapabilities && <span className="text-xs bg-emerald-900/50 px-1 rounded border border-emerald-700">AI</span>}
+        </p>
+      </div>
+    </div>
+    
+    {/* Navigation buttons group */}
+    <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+      <button onClick={() => setShowIntroModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">المقدمة</span></button>
+      <button onClick={() => navigateTo('favorites')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'favorites' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><FolderHeart size={20} /> <span className="font-arabic">مجموعاتي</span></button>
+      <button onClick={() => navigateTo('browse')} className={`p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 ${viewMode === 'browse' ? 'bg-emerald-900 dark:bg-slate-800 text-white' : 'hover:bg-white/10 text-emerald-100'}`}><Library size={20} /> <span className="font-arabic">المكتبة</span></button>
+      <button onClick={() => setShowAboutModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Info size={20} /> <span className="font-arabic">عن التطبيق</span></button>
+      <button onClick={() => setShowHelpModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><BookOpen size={20} /> <span className="font-arabic">دليل الاستخدام</span></button>
+      <button onClick={() => setShowSettingsModal(true)} className="p-2.5 rounded-xl transition-all font-bold text-sm flex items-center gap-2 hover:bg-white/10 text-emerald-100"><Settings size={20} /> <span className="font-arabic">إعدادات AI</span></button>
+      <div className="w-px h-6 bg-white/20 mx-2"></div>
+      <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
+        <button onClick={() => setFontSize(prev => Math.min(prev + 2, 40))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تكبير الخط"><ZoomIn size={18}/></button>
+        <button onClick={() => setFontSize(prev => Math.max(prev - 2, 14))} className="p-1.5 hover:bg-white/20 rounded-lg text-emerald-100" title="تصغير الخط"><ZoomOut size={18}/></button>
+      </div>
+      
 {/* --- Desktop View Mode & Split Screen Toggles --- */}
 <div className="hidden md:flex items-center gap-2 ml-2">
                 

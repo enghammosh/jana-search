@@ -1,4 +1,4 @@
-export const APP_VERSION = "V3.9.7"; 
+export const APP_VERSION = "V3.9.7.4"; 
 
 export const WHATS_NEW_DATA = [
   {
