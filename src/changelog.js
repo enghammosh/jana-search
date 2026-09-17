@@ -1,9 +1,9 @@
-export const APP_VERSION = "2026.9.16"; 
+export const APP_VERSION = "V3.9.7"; 
 
 export const WHATS_NEW_DATA = [
   {
-    version: "2026.9.16",
-    date: "16 سبتمبر 2026",
+    version:  APP_VERSION,
+    date: "9/17/2026",
     features: [
       "إضافة رسالة ترحيبية تشرح الهدف من التطبيق وطبيعته للمستخدمين الجدد.",
       "إخفاء رسالة الترحيب تلقائياً بمجرد بدء البحث لتوسيع مساحة النتائج.",
