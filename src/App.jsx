@@ -976,17 +976,16 @@ function MainApp() {
      </button>
   </div>
 
-  {/* FIXED: Changed justify-between to justify-center and removed md:pl-[140px] */}
-  <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-center gap-8 md:gap-12">
+  {/* FIXED: justify-between for mobile screens, md:justify-center for desktop screens */}
+  <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between md:justify-center gap-4 md:gap-8 md:pl-[140px] lg:pl-0">
     
-    {/* FIXED: Added flex-shrink-0 to the logo container */}
+    {/* FIXED: Maintained flex-shrink-0 and whitespace-nowrap from your desktop fix */}
     <div className="flex items-center gap-3 cursor-pointer flex-shrink-0" onClick={() => { setViewMode('search'); setSearchMode('normal'); }}>
       <div className="bg-white/20 p-2 rounded-xl shadow-inner border border-white/10 gold-edge relative">
         <Library size={28} className="text-white" />
         {hasAiCapabilities && <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5"><Sparkles size={10} className="text-white"/></div>}
       </div>
       <div>
-        {/* FIXED: Added whitespace-nowrap to keep words on one line */}
         <h1 className="text-2xl sm:text-3xl font-bold font-arabic leading-none tracking-tight gold-text-shadow text-white whitespace-nowrap">
           الجنى الداني
         </h1>
